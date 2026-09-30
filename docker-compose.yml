@@ -1,0 +1,17 @@
+services:
+  mongo:
+    image: mongo:8
+    container_name: spellstutter-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - spellstutter-mongo:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  spellstutter-mongo:

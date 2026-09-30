@@ -1,0 +1,295 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   Dark mode is driven by an explicit `data-theme` attribute on <html> so the
+   choice survives SSR without a flash. The app is dark-first.
+--------------------------------------------------------------------------- */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* ---------------------------------------------------------------------------
+   Palette. Raw brand ramps only — never used directly in components.
+   Components use the semantic tokens defined below.
+--------------------------------------------------------------------------- */
+@theme {
+  --color-ink-black-50: #edf0f7;
+  --color-ink-black-100: #dce2ef;
+  --color-ink-black-200: #b9c4df;
+  --color-ink-black-300: #95a7d0;
+  --color-ink-black-400: #7289c0;
+  --color-ink-black-500: #4f6cb0;
+  --color-ink-black-600: #3f568d;
+  --color-ink-black-700: #2f416a;
+  --color-ink-black-800: #202b46;
+  --color-ink-black-900: #101623;
+  --color-ink-black-950: #0b0f19;
+
+  --color-twilight-indigo-50: #eff0f6;
+  --color-twilight-indigo-100: #dfe2ec;
+  --color-twilight-indigo-200: #bfc4d9;
+  --color-twilight-indigo-300: #9fa7c6;
+  --color-twilight-indigo-400: #7e89b4;
+  --color-twilight-indigo-500: #5e6ca1;
+  --color-twilight-indigo-600: #4b5681;
+  --color-twilight-indigo-700: #394160;
+  --color-twilight-indigo-800: #262b40;
+  --color-twilight-indigo-900: #131620;
+  --color-twilight-indigo-950: #0d0f16;
+
+  --color-vintage-grape-50: #f1f1f4;
+  --color-vintage-grape-100: #e4e2e9;
+  --color-vintage-grape-200: #c8c5d3;
+  --color-vintage-grape-300: #ada9bc;
+  --color-vintage-grape-400: #918ca6;
+  --color-vintage-grape-500: #766f90;
+  --color-vintage-grape-600: #5e5973;
+  --color-vintage-grape-700: #474356;
+  --color-vintage-grape-800: #2f2c3a;
+  --color-vintage-grape-900: #18161d;
+  --color-vintage-grape-950: #101014;
+
+  --color-vibrant-coral-50: #ffe5e6;
+  --color-vibrant-coral-100: #ffccce;
+  --color-vibrant-coral-200: #ff999c;
+  --color-vibrant-coral-300: #ff666b;
+  --color-vibrant-coral-400: #ff333a;
+  --color-vibrant-coral-500: #ff0008;
+  --color-vibrant-coral-600: #cc0007;
+  --color-vibrant-coral-700: #990005;
+  --color-vibrant-coral-800: #660003;
+  --color-vibrant-coral-900: #330002;
+  --color-vibrant-coral-950: #240001;
+
+  --color-toffee-brown-50: #f8f2ec;
+  --color-toffee-brown-100: #f1e4da;
+  --color-toffee-brown-200: #e4cab4;
+  --color-toffee-brown-300: #d6af8f;
+  --color-toffee-brown-400: #c99469;
+  --color-toffee-brown-500: #bb7a44;
+  --color-toffee-brown-600: #966136;
+  --color-toffee-brown-700: #704929;
+  --color-toffee-brown-800: #4b311b;
+  --color-toffee-brown-900: #25180e;
+  --color-toffee-brown-950: #1a1109;
+
+  /* Mana pips. Tuned for AA against dark and light surfaces. */
+  --color-mana-w: #efe4bf;
+  --color-mana-u: #a9cbe8;
+  --color-mana-b: #b8b2c4;
+  --color-mana-r: #f2a394;
+  --color-mana-g: #a9d3b6;
+  --color-mana-c: #c9ced9;
+
+  /* Fluid display scale (1.25 modular ratio, clamped for small screens). */
+  --text-display: clamp(2.25rem, 1.6rem + 2.6vw, 3.75rem);
+  --text-display--line-height: 1.05;
+  --text-display--letter-spacing: -0.02em;
+  --text-title: clamp(1.5rem, 1.25rem + 1.1vw, 2.25rem);
+  --text-title--line-height: 1.15;
+  --text-title--letter-spacing: -0.015em;
+
+  --font-sans: var(--font-instrument);
+  --font-display: var(--font-bricolage);
+}
+
+/* ---------------------------------------------------------------------------
+   Semantic tokens. `inline` keeps the variable reference in the generated
+   utilities so a single class flips with the theme.
+--------------------------------------------------------------------------- */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sideboard: var(--sideboard);
+  --color-maybe: var(--maybe);
+}
+
+:root,
+[data-theme="dark"] {
+  --background: var(--color-ink-black-950);
+  --foreground: var(--color-ink-black-50);
+
+  --card: var(--color-ink-black-900);
+  --card-foreground: var(--color-ink-black-50);
+
+  --popover: var(--color-ink-black-900);
+  --popover-foreground: var(--color-ink-black-50);
+
+  --primary: var(--color-vibrant-coral-500);
+  --primary-hover: var(--color-vibrant-coral-400);
+  --primary-foreground: #ffffff;
+
+  --secondary: var(--color-toffee-brown-500);
+  --secondary-foreground: var(--color-ink-black-950);
+
+  --muted: var(--color-ink-black-800);
+  --muted-foreground: var(--color-ink-black-200);
+
+  --accent: var(--color-twilight-indigo-800);
+  --accent-foreground: var(--color-ink-black-50);
+
+  --destructive: var(--color-vibrant-coral-400);
+  --destructive-foreground: var(--color-ink-black-950);
+
+  --border: var(--color-ink-black-800);
+  --input: var(--color-ink-black-800);
+  --ring: var(--color-vibrant-coral-400);
+
+  --sideboard: var(--color-toffee-brown-300);
+  --maybe: var(--color-twilight-indigo-300);
+
+  --shadow-color: 222 45% 4%;
+}
+
+[data-theme="light"] {
+  --background: #ffffff;
+  --foreground: var(--color-ink-black-950);
+
+  --card: #ffffff;
+  --card-foreground: var(--color-ink-black-950);
+
+  --popover: #ffffff;
+  --popover-foreground: var(--color-ink-black-950);
+
+  --primary: var(--color-vibrant-coral-600);
+  --primary-hover: var(--color-vibrant-coral-700);
+  --primary-foreground: #ffffff;
+
+  --secondary: var(--color-toffee-brown-600);
+  --secondary-foreground: #ffffff;
+
+  --muted: var(--color-ink-black-100);
+  --muted-foreground: var(--color-ink-black-700);
+
+  --accent: var(--color-twilight-indigo-100);
+  --accent-foreground: var(--color-ink-black-950);
+
+  --destructive: var(--color-vibrant-coral-700);
+  --destructive-foreground: #ffffff;
+
+  --border: var(--color-ink-black-200);
+  --input: var(--color-ink-black-300);
+  --ring: var(--color-vibrant-coral-600);
+
+  --sideboard: var(--color-toffee-brown-700);
+  --maybe: var(--color-twilight-indigo-700);
+
+  --shadow-color: 222 45% 20%;
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  html {
+    color-scheme: dark;
+  }
+
+  [data-theme="light"] {
+    color-scheme: light;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans), system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5 {
+    font-family: var(--font-display), system-ui, sans-serif;
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  ::selection {
+    background-color: var(--primary);
+    color: var(--primary-foreground);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
+
+@layer utilities {
+  .numeric {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
+
+  .animate-in {
+    animation: enter 200ms ease-out;
+  }
+
+  .animate-pop {
+    animation: pop 180ms ease-out;
+  }
+}
+
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+dialog::backdrop {
+  background-color: color-mix(in srgb, var(--color-ink-black-950) 70%, transparent);
+}
+
+/* ---------------------------------------------------------------------------
+   Motion budget: hovers 120ms, entrances 240ms, exits 120ms.
+   Every spatial animation is gated by prefers-reduced-motion.
+--------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

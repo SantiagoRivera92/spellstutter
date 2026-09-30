@@ -1,0 +1,41 @@
+name: Sync Pauper card catalog
+
+on:
+  schedule:
+    # Daily at 04:17 UTC — Scryfall refreshes bulk data roughly daily.
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Re-download and re-upsert even if bulk data is unchanged
+        type: boolean
+        default: false
+
+concurrency:
+  group: sync-cards
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Sync Scryfall bulk data to MongoDB
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          MONGODB_DB: ${{ vars.MONGODB_DB || 'spellstutter' }}
+          SCRYFALL_USER_AGENT: ${{ vars.SCRYFALL_USER_AGENT }}
+        run: pnpm sync:cards ${{ inputs.force && '-- --force' || '' }}

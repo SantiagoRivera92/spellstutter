@@ -1,0 +1,52 @@
+name: Sync Pauper metagame
+
+on:
+  schedule:
+    # Daily at 05:23 UTC — MTGO publishes league results through the day.
+    - cron: "23 5 * * *"
+  workflow_dispatch:
+    inputs:
+      year:
+        description: Year to scrape (defaults to current UTC year)
+        required: false
+      month:
+        description: Month to scrape, 1-12 (defaults to current UTC month)
+        required: false
+      force:
+        description: Re-scrape events already stored
+        type: boolean
+        default: false
+
+concurrency:
+  group: sync-metagame
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Scrape MTGO Pauper events to MongoDB
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          MONGODB_DB: ${{ vars.MONGODB_DB || 'spellstutter' }}
+          SCRYFALL_USER_AGENT: ${{ vars.SCRYFALL_USER_AGENT }}
+        run: |
+          ARGS=""
+          if [ -n "${{ inputs.year }}" ]; then ARGS="$ARGS --year=${{ inputs.year }}"; fi
+          if [ -n "${{ inputs.month }}" ]; then ARGS="$ARGS --month=${{ inputs.month }}"; fi
+          if [ "${{ inputs.force }}" = "true" ]; then ARGS="$ARGS --force"; fi
+          pnpm sync:metagame -- $ARGS

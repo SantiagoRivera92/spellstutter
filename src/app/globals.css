@@ -98,6 +98,8 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-panel: var(--panel);
+  --color-panel-foreground: var(--panel-foreground);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
   --color-popover: var(--popover);
@@ -118,19 +120,25 @@
   --color-ring: var(--ring);
   --color-sideboard: var(--sideboard);
   --color-maybe: var(--maybe);
+  --color-nav-active: var(--nav-active);
 }
 
 :root,
 [data-theme="dark"] {
-  --background: var(--color-ink-black-950);
+  /* Three-layer surface hierarchy: background < elevated panel < interactive card. */
+  --background: #0b0f19;
   --foreground: var(--color-ink-black-50);
 
-  --card: var(--color-ink-black-900);
+  --panel: #141a2c;
+  --panel-foreground: var(--color-ink-black-50);
+
+  --card: #1b2236;
   --card-foreground: var(--color-ink-black-50);
 
-  --popover: var(--color-ink-black-900);
+  --popover: #1b2236;
   --popover-foreground: var(--color-ink-black-50);
 
+  /* Coral is reserved for actions (primary CTAs, active tabs) and danger. */
   --primary: var(--color-vibrant-coral-500);
   --primary-hover: var(--color-vibrant-coral-400);
   --primary-foreground: #ffffff;
@@ -138,21 +146,23 @@
   --secondary: var(--color-toffee-brown-500);
   --secondary-foreground: var(--color-ink-black-950);
 
-  --muted: var(--color-ink-black-800);
+  --muted: #232b44;
   --muted-foreground: var(--color-ink-black-200);
 
-  --accent: var(--color-twilight-indigo-800);
+  /* Indigo drives navigation state and interactive emphasis. */
+  --accent: #313b5e;
   --accent-foreground: var(--color-ink-black-50);
 
-  --destructive: var(--color-vibrant-coral-400);
-  --destructive-foreground: var(--color-ink-black-950);
+  --destructive: var(--color-vibrant-coral-600);
+  --destructive-foreground: var(--color-ink-black-50);
 
-  --border: var(--color-ink-black-800);
-  --input: var(--color-ink-black-800);
-  --ring: var(--color-vibrant-coral-400);
+  --border: #2b3452;
+  --input: #2b3452;
+  --ring: var(--color-twilight-indigo-400);
 
   --sideboard: var(--color-toffee-brown-300);
   --maybe: var(--color-twilight-indigo-300);
+  --nav-active: var(--color-twilight-indigo-300);
 
   --shadow-color: 222 45% 4%;
 }
@@ -160,6 +170,9 @@
 [data-theme="light"] {
   --background: #ffffff;
   --foreground: var(--color-ink-black-950);
+
+  --panel: #f4f5fa;
+  --panel-foreground: var(--color-ink-black-950);
 
   --card: #ffffff;
   --card-foreground: var(--color-ink-black-950);
@@ -174,21 +187,22 @@
   --secondary: var(--color-toffee-brown-600);
   --secondary-foreground: #ffffff;
 
-  --muted: var(--color-ink-black-100);
+  --muted: #eceef6;
   --muted-foreground: var(--color-ink-black-700);
 
-  --accent: var(--color-twilight-indigo-100);
+  --accent: #e2e5f1;
   --accent-foreground: var(--color-ink-black-950);
 
   --destructive: var(--color-vibrant-coral-700);
   --destructive-foreground: #ffffff;
 
-  --border: var(--color-ink-black-200);
-  --input: var(--color-ink-black-300);
-  --ring: var(--color-vibrant-coral-600);
+  --border: #d9dcea;
+  --input: #c6cade;
+  --ring: var(--color-twilight-indigo-600);
 
   --sideboard: var(--color-toffee-brown-700);
   --maybe: var(--color-twilight-indigo-700);
+  --nav-active: var(--color-twilight-indigo-600);
 
   --shadow-color: 222 45% 20%;
 }

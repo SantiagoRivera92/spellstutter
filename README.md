@@ -213,6 +213,13 @@ Mono-Blue / Izzet / Dimir, Madness into Monored / Izzet / Rakdos, Faeries into
 Dimir / Mono-Blue. A mandatory `requires` card separates lookalikes: any
 artifact shell running Cleansing Wildfire is a Wildfire deck, not Affinity.
 
+Dimir Faeries and Dimir Control share almost their whole removal and
+counterspell shell, so matching on that shell alone lumps them together. The
+Faeries rule therefore requires one of its tempo creatures (Spellstutter Sprite,
+Faerie Seer, Ninja of the Deep Hours, Moon-Circuit Hacker), and Dimir Control
+matches on cards the control build plays but the tempo deck does not (Murmuring
+Mystic, Campfire, Cut Down, Preordain, Plunder the Trollshaws, Lose Focus).
+
 Two more rules of thumb encoded in the table:
 
 - Classification uses the **mainboard** colours only, since sideboards often
@@ -246,7 +253,7 @@ count any single list used (so one list with 3 Brainstorm seeds 3, not 4).
 
 ## Known limitations
 
-- The metagame classifier is heuristic (v3); uncommon colour combinations still
+- The metagame classifier is heuristic (v4); uncommon colour combinations still
   land in `Other` and the rule table should be tuned over time.
 - Deck colour identity in the metagame view is derived from MTGO card colour
   data, which approximates identity (coloured lands and colourless pips are not

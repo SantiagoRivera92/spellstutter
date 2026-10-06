@@ -1,8 +1,6 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
   Folder,
@@ -29,13 +27,13 @@ import {
 } from "@/lib/decks/actions";
 import type { ArchetypeOption } from "@/lib/metagame/types";
 import { collectDescendantIds, flattenFolders } from "@/lib/decks/folders";
-import { cn, formatDate } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input, Field, Select, Textarea } from "@/components/ui/field";
 import { Dialog } from "@/components/ui/dialog";
 import { DropdownMenu, MenuItem, MenuSeparator } from "@/components/ui/dropdown-menu";
 import { EmptyState } from "@/components/ui/empty-state";
-import { ColorPips } from "@/components/cards/color-pips";
+import { DeckCard } from "./deck-card";
 
 type Selection = "all" | "unfiled" | string;
 
@@ -54,14 +52,18 @@ export function LibraryBrowser({
   folders,
   decks,
   archetypes,
+  openNewDeck = false,
 }: {
   folders: FolderNode[];
   decks: DeckSummary[];
   archetypes: ArchetypeOption[];
+  openNewDeck?: boolean;
 }) {
   const router = useRouter();
   const [selection, setSelection] = React.useState<Selection>("all");
-  const [dialog, setDialog] = React.useState<DialogState>(null);
+  const [dialog, setDialog] = React.useState<DialogState>(
+    openNewDeck ? { kind: "new-deck" } : null,
+  );
   const [error, setError] = React.useState<string | null>(null);
   const [pending, startTransition] = React.useTransition();
 
@@ -203,11 +205,43 @@ export function LibraryBrowser({
         ) : (
           <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {visibleDecks.map((deck) => (
-              <DeckCard
-                key={deck.id}
-                deck={deck}
-                onMenu={setDialog}
-              />
+              <li key={deck.id}>
+                <DeckCard
+                  deck={deck}
+                  href={`/decks/${deck.id}`}
+                  actions={
+                    <DropdownMenu
+                      label={`Deck actions for ${deck.name}`}
+                      trigger={
+                        <span className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground">
+                          <MoreHorizontal className="size-4" aria-hidden />
+                        </span>
+                      }
+                    >
+                      <MenuItem
+                        onClick={() => setDialog({ kind: "edit-deck", deck })}
+                      >
+                        <Pencil className="size-4" aria-hidden />
+                        Details
+                      </MenuItem>
+                      <MenuItem
+                        onClick={() => setDialog({ kind: "move-deck", deck })}
+                      >
+                        <FolderInput className="size-4" aria-hidden />
+                        Move to folder…
+                      </MenuItem>
+                      <MenuSeparator />
+                      <MenuItem
+                        destructive
+                        onClick={() => setDialog({ kind: "delete-deck", deck })}
+                      >
+                        <Trash2 className="size-4" aria-hidden />
+                        Delete
+                      </MenuItem>
+                    </DropdownMenu>
+                  }
+                />
+              </li>
             ))}
           </ul>
         )}
@@ -482,78 +516,6 @@ function FolderTree({
           ))}
         </ul>
       ) : null}
-    </li>
-  );
-}
-
-function DeckCard({
-  deck,
-  onMenu,
-}: {
-  deck: DeckSummary;
-  onMenu: (state: DialogState) => void;
-}) {
-  return (
-    <li className="group rounded-lg border border-border bg-card transition-colors duration-150 hover:border-primary/50">
-      <Link href={`/decks/${deck.id}`} className="block">
-        <div className="relative aspect-[16/9] overflow-hidden rounded-t-lg bg-muted">
-          {deck.cover_art_url ? (
-            <Image
-              src={deck.cover_art_url}
-              alt=""
-              fill
-              sizes="(max-width: 640px) 100vw, 320px"
-              className="object-cover"
-              unoptimized
-            />
-          ) : (
-            <div className="flex size-full items-center justify-center text-muted-foreground">
-              <Layers className="size-6" aria-hidden />
-            </div>
-          )}
-        </div>
-        <div className="p-3">
-          <div className="flex items-start justify-between gap-2">
-            <h3 className="truncate font-display text-sm font-medium">
-              {deck.name}
-            </h3>
-            {deck.visibility !== "private" ? (
-              <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                {deck.visibility}
-              </span>
-            ) : null}
-          </div>
-          <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
-            <ColorPips colors={deck.color_identity} size={14} label={false} />
-            <span className="numeric">{deck.card_count} cards</span>
-            <span className="ml-auto">{formatDate(deck.updated_at)}</span>
-          </div>
-        </div>
-      </Link>
-      <div className="flex items-center justify-end border-t border-border px-2 py-1.5">
-        <DropdownMenu
-          label={`Deck actions for ${deck.name}`}
-          trigger={
-            <span className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground">
-              <MoreHorizontal className="size-4" aria-hidden />
-            </span>
-          }
-        >
-          <MenuItem onClick={() => onMenu({ kind: "edit-deck", deck })}>
-            <Pencil className="size-4" aria-hidden />
-            Details
-          </MenuItem>
-          <MenuItem onClick={() => onMenu({ kind: "move-deck", deck })}>
-            <FolderInput className="size-4" aria-hidden />
-            Move to folder…
-          </MenuItem>
-          <MenuSeparator />
-          <MenuItem destructive onClick={() => onMenu({ kind: "delete-deck", deck })}>
-            <Trash2 className="size-4" aria-hidden />
-            Delete
-          </MenuItem>
-        </DropdownMenu>
-      </div>
     </li>
   );
 }

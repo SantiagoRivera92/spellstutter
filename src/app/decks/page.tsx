@@ -63,6 +63,7 @@ export default async function DecksPage({
           folders={library.folders}
           decks={library.decks}
           archetypes={archetypes}
+          openNewDeck={params.new === "1"}
         />
       </div>
     </div>

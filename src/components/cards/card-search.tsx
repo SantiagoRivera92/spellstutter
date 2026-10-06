@@ -21,6 +21,8 @@ interface CardSearchProps {
   pauperOnly?: boolean;
   className?: string;
   emptyHint?: string;
+  /** Seed the input, e.g. from a global-search `?q=` parameter. */
+  initialQuery?: string;
 }
 
 type Status = "idle" | "loading" | "ready" | "error";
@@ -43,8 +45,9 @@ export function CardSearch({
   pauperOnly,
   className,
   emptyHint = "Search Scryfall by name, or use full syntax like t:instant c:u cmc<=2.",
+  initialQuery = "",
 }: CardSearchProps) {
-  const [query, setQuery] = React.useState("");
+  const [query, setQuery] = React.useState(initialQuery);
   const [results, setResults] = React.useState<CardSearchResult[]>([]);
   const [total, setTotal] = React.useState(0);
   const [page, setPage] = React.useState(1);

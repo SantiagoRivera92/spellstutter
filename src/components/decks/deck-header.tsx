@@ -1,9 +1,12 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { DeckView } from "@/lib/decks/types";
+import type { CardColor } from "@/lib/cards/types";
 import type { Folder } from "@/lib/supabase/types";
 import { formatDate, formatUsd } from "@/lib/utils";
+import { archetypeName } from "@/lib/metagame/archetypes";
 import { Badge } from "@/components/ui/badge";
+import { ColorPips } from "@/components/cards/color-pips";
 import { DeckToolbar, VisibilityControl } from "./deck-toolbar";
 
 export function DeckHeader({
@@ -19,6 +22,12 @@ export function DeckHeader({
 }) {
   const { deck, stats, cards } = view;
   const cover = deck.cover_art_url;
+
+  const identity = new Set<CardColor>();
+  for (const card of cards) {
+    for (const color of card.color_identity) identity.add(color);
+  }
+  const colors = [...identity];
 
   return (
     <section className="border-b border-border">
@@ -61,13 +70,21 @@ export function DeckHeader({
 
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-prose">
-              {deck.visibility !== "private" ? (
-                <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                {colors.length ? <ColorPips colors={colors} size={18} /> : null}
+                {deck.archetype_slug ? (
+                  <Link href={`/metagame/archetypes/${deck.archetype_slug}`}>
+                    <Badge tone="warning">
+                      {archetypeName(deck.archetype_slug)}
+                    </Badge>
+                  </Link>
+                ) : null}
+                {deck.visibility !== "private" ? (
                   <Badge tone="outline" className="border-ink-black-600 text-ink-black-100">
                     {deck.visibility}
                   </Badge>
-                </div>
-              ) : null}
+                ) : null}
+              </div>
               <h1 className="mt-3 font-display text-title font-bold text-ink-black-50">
                 {deck.name}
               </h1>

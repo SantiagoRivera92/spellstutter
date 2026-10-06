@@ -5,6 +5,7 @@ import { Bricolage_Grotesque, Instrument_Sans } from "next/font/google";
 import "./globals.css";
 import { SiteHeader } from "@/components/layout/site-header";
 import { SiteFooter } from "@/components/layout/site-footer";
+import { MobileTabBar } from "@/components/layout/mobile-tab-bar";
 
 const bricolage = Bricolage_Grotesque({
   variable: "--font-bricolage",
@@ -78,10 +79,11 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           Skip to content
         </a>
         <SiteHeader />
-        <main id="main" className="flex-1">
+        <main id="main" className="flex-1 pb-16 md:pb-0">
           {children}
         </main>
         <SiteFooter />
+        <MobileTabBar />
       </body>
     </html>
   );

@@ -3,7 +3,15 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, LogOut, Menu, Settings, User, X } from "lucide-react";
+import {
+  Bell,
+  LogOut,
+  Menu,
+  Plus,
+  Settings,
+  User,
+  X,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar } from "@/components/ui/avatar";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -23,12 +31,60 @@ export interface HeaderSession {
   avatarArtUrl: string | null;
 }
 
-const NAV = [
-  { href: "/events", label: "Events", prefix: true },
-  { href: "/metagame", label: "Metagame", prefix: true },
-  { href: "/staples", label: "Staples", prefix: false },
-  { href: "/decks/public", label: "User decks", prefix: false },
-  { href: "/decks", label: "My decks", prefix: false },
+interface NavItem {
+  href: string;
+  label: string;
+  active: (pathname: string) => boolean;
+}
+
+interface NavGroup {
+  label: string;
+  items: NavItem[];
+}
+
+const NAV_GROUPS: NavGroup[] = [
+  {
+    label: "Browse",
+    items: [
+      {
+        href: "/metagame",
+        label: "Metagame",
+        active: (p) => p === "/metagame" || p.startsWith("/metagame/"),
+      },
+      {
+        href: "/events",
+        label: "Events",
+        active: (p) => p === "/events" || p.startsWith("/events/"),
+      },
+      {
+        href: "/staples",
+        label: "Staples",
+        active: (p) => p === "/staples" || p.startsWith("/staples/"),
+      },
+    ],
+  },
+  {
+    label: "Build",
+    items: [
+      {
+        href: "/decks",
+        label: "My decks",
+        active: (p) =>
+          p === "/decks" ||
+          (p.startsWith("/decks/") && !p.startsWith("/decks/public")),
+      },
+    ],
+  },
+  {
+    label: "Community",
+    items: [
+      {
+        href: "/decks/public",
+        label: "User decks",
+        active: (p) => p === "/decks/public",
+      },
+    ],
+  },
 ];
 
 export function HeaderNav({
@@ -42,8 +98,8 @@ export function HeaderNav({
   const [mobileOpen, setMobileOpen] = React.useState(false);
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border bg-background">
-      <div className="mx-auto flex h-14 max-w-6xl items-center gap-4 px-4">
+    <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+      <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4">
         <Link
           href="/"
           className="flex items-center gap-2 text-foreground"
@@ -55,30 +111,33 @@ export function HeaderNav({
           </span>
         </Link>
 
-        <nav aria-label="Primary" className="hidden items-center gap-1 md:flex">
-          {NAV.map((item) => {
-            const active =
-              pathname === item.href ||
-              (item.prefix && pathname.startsWith(`${item.href}/`));
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                aria-current={active ? "page" : undefined}
-                className={cn(
-                  "rounded-md px-3 py-1.5 text-sm font-medium transition-colors duration-150",
-                  active
-                    ? "bg-muted text-foreground"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                )}
-              >
-                {item.label}
-              </Link>
-            );
-          })}
+        <nav aria-label="Primary" className="hidden items-center gap-0.5 md:flex">
+          {NAV_GROUPS.map((group, index) => (
+            <React.Fragment key={group.label}>
+              {index > 0 ? (
+                <span className="mx-1 h-4 w-px bg-border" aria-hidden />
+              ) : null}
+              {group.items.map((item) => (
+                <NavLink key={item.href} item={item} pathname={pathname} />
+              ))}
+            </React.Fragment>
+          ))}
         </nav>
 
         <div className="ml-auto flex items-center gap-1.5">
+          {session ? (
+            <Link
+              href="/decks?new=1"
+              className={buttonVariants({
+                size: "sm",
+                className: "hidden sm:inline-flex",
+              })}
+            >
+              <Plus className="size-4" aria-hidden />
+              New deck
+            </Link>
+          ) : null}
+
           {session ? (
             <Link
               href="/notifications"
@@ -157,23 +216,32 @@ export function HeaderNav({
       {mobileOpen ? (
         <nav
           id="mobile-nav"
-          aria-label="Mobile"
+          aria-label="Mobile secondary"
           className="border-t border-border md:hidden"
         >
-          <ul className="mx-auto flex max-w-6xl flex-col px-4 py-2">
-            {NAV.map((item) => (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  onClick={() => setMobileOpen(false)}
-                  className="block rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
-                >
-                  {item.label}
-                </Link>
-              </li>
+          <div className="mx-auto max-w-6xl px-4 py-3">
+            {NAV_GROUPS.map((group) => (
+              <div key={group.label} className="py-1">
+                <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  {group.label}
+                </p>
+                <ul>
+                  {group.items.map((item) => (
+                    <li key={item.href}>
+                      <Link
+                        href={item.href}
+                        onClick={() => setMobileOpen(false)}
+                        className="block rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+                      >
+                        {item.label}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             ))}
             {!session ? (
-              <li className="flex gap-2 px-1 py-2">
+              <div className="mt-2 flex gap-2 px-1">
                 <Link
                   href="/login"
                   className={buttonVariants({ variant: "outline", size: "sm", className: "flex-1" })}
@@ -186,12 +254,30 @@ export function HeaderNav({
                 >
                   Create account
                 </Link>
-              </li>
+              </div>
             ) : null}
-          </ul>
+          </div>
         </nav>
       ) : null}
     </header>
+  );
+}
+
+function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
+  const active = item.active(pathname);
+  return (
+    <Link
+      href={item.href}
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        "rounded-md px-3 py-1.5 text-sm font-medium transition-colors duration-150",
+        active
+          ? "bg-accent text-accent-foreground"
+          : "text-muted-foreground hover:bg-muted hover:text-foreground",
+      )}
+    >
+      {item.label}
+    </Link>
   );
 }
 

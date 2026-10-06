@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { DeckHeader } from "@/components/decks/deck-header";
 import { DeckView } from "@/components/decks/deck-view";
+import { DeckTabs } from "@/components/decks/deck-tabs";
 import { CommentSection } from "@/components/decks/comment-section";
 import { SetupNotice } from "@/components/setup-notice";
 import { getSession } from "@/lib/auth/session";
@@ -74,15 +75,50 @@ export default async function DeckPage({ params }: PageProps<"/decks/[deckId]">)
         ownerName={owner?.username}
         folders={folders}
       />
-      <DeckView view={view} />
-      <div className="mx-auto max-w-6xl px-4 pb-12">
-        <CommentSection
-          deckId={deckId}
-          comments={comments}
-          canComment={Boolean(session)}
-          currentUserId={session?.id ?? null}
-        />
-      </div>
+      <DeckTabs
+        defaultTab="list"
+        tabs={[
+          {
+            id: "list",
+            label: "List",
+            content: <DeckView view={view} />,
+          },
+          {
+            id: "primer",
+            label: "Primer",
+            content: (
+              <div className="mx-auto max-w-3xl px-4 py-8">
+                <h2 className="font-display text-base font-medium">Primer</h2>
+                {view.deck.description?.trim() ? (
+                  <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
+                    {view.deck.description}
+                  </p>
+                ) : (
+                  <p className="mt-3 text-sm text-muted-foreground">
+                    {canEdit
+                      ? "Add a primer from the deck details dialog — cover your game plan, key interactions, and sideboard map."
+                      : "The author hasn't written a primer for this deck yet."}
+                  </p>
+                )}
+              </div>
+            ),
+          },
+          {
+            id: "comments",
+            label: "Comments",
+            content: (
+              <div className="mx-auto max-w-6xl px-4 py-8">
+                <CommentSection
+                  deckId={deckId}
+                  comments={comments}
+                  canComment={Boolean(session)}
+                  currentUserId={session?.id ?? null}
+                />
+              </div>
+            ),
+          },
+        ]}
+      />
     </div>
   );
 }

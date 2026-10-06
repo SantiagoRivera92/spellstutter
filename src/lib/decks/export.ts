@@ -1,4 +1,5 @@
 import type { DeckCardView } from "./types";
+import { CATEGORY_ORDER } from "./utils";
 
 const CATEGORY_HEADERS: Record<DeckCardView["category_group"], string> = {
   Creature: "Creatures",
@@ -78,7 +79,9 @@ export function deckToText(cards: DeckCardView[]): string {
   }
 
   const lines: string[] = [];
-  for (const [category, list] of byCategory) {
+  for (const category of CATEGORY_ORDER) {
+    const list = byCategory.get(category);
+    if (!list?.length) continue;
     lines.push(`// ${CATEGORY_HEADERS[category]}`);
     list
       .sort((a, b) => a.card_name.localeCompare(b.card_name))

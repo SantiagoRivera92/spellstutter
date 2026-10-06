@@ -119,6 +119,8 @@ export function DeckToolbar({
           {pending ? "Cloning…" : "Clone deck"}
         </Button>
       )}
+      {/* Intentionally available to any viewer: a public/unlisted deck's
+          decklist is public data. */}
       <Button variant="outline" onClick={() => setDialog("export")}>
         <Download className="size-4" aria-hidden />
         Export

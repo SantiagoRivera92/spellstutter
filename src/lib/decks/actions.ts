@@ -52,6 +52,24 @@ async function context(): Promise<ActionContext> {
   return { ok: true, session, supabase };
 }
 
+/**
+ * Defensive ownership check. RLS should already enforce this, but we never
+ * trust a row id alone before mutating it.
+ */
+async function ownedDeck(
+  supabase: SupabaseClient,
+  deckId: string,
+  userId: string,
+): Promise<boolean> {
+  const { data } = await supabase
+    .from("decks")
+    .select("id")
+    .eq("id", deckId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  return Boolean(data);
+}
+
 function revalidateDeck(deckId?: string) {
   revalidatePath("/decks");
   if (deckId) revalidatePath(`/decks/${deckId}`);
@@ -88,7 +106,8 @@ export async function renameFolder(input: {
   const { error } = await ctx.supabase
     .from("folders")
     .update({ name: parsed.data })
-    .eq("id", input.id);
+    .eq("id", input.id)
+    .eq("user_id", ctx.session.id);
   if (error) return { ok: false, error: error.message };
   revalidatePath("/decks");
   return { ok: true };
@@ -100,7 +119,8 @@ export async function deleteFolder(input: { id: string }): Promise<ActionResult>
   const { error } = await ctx.supabase
     .from("folders")
     .delete()
-    .eq("id", input.id);
+    .eq("id", input.id)
+    .eq("user_id", ctx.session.id);
   if (error) return { ok: false, error: error.message };
   revalidatePath("/decks");
   return { ok: true };
@@ -115,7 +135,8 @@ export async function moveFolder(input: {
   const { error } = await ctx.supabase
     .from("folders")
     .update({ parent_id: input.parentId })
-    .eq("id", input.id);
+    .eq("id", input.id)
+    .eq("user_id", ctx.session.id);
   if (error) return { ok: false, error: error.message };
   revalidatePath("/decks");
   return { ok: true };
@@ -348,7 +369,8 @@ export async function updateDeck(input: {
   const { error } = await ctx.supabase
     .from("decks")
     .update(patch)
-    .eq("id", input.id);
+    .eq("id", input.id)
+    .eq("user_id", ctx.session.id);
   if (error) return { ok: false, error: error.message };
   revalidateDeck(input.id);
   return { ok: true };
@@ -363,7 +385,8 @@ export async function deleteDeck(input: {
   const { error } = await ctx.supabase
     .from("decks")
     .delete()
-    .eq("id", input.id);
+    .eq("id", input.id)
+    .eq("user_id", ctx.session.id);
   if (error) return { ok: false, error: error.message };
   revalidatePath("/decks");
   if (input.redirectTo) redirect(input.redirectTo);
@@ -386,29 +409,35 @@ export async function setDeckCover(input: {
       cover_printing_id: input.printingId ?? null,
       cover_art_url: input.artUrl ?? null,
     })
-    .eq("id", input.deckId);
+    .eq("id", input.deckId)
+    .eq("user_id", ctx.session.id);
   if (error) return { ok: false, error: error.message };
   revalidateDeck(input.deckId);
   return { ok: true };
 }
 
-interface LegalityCheck {
-  ok: boolean;
-  printingId: string | null;
-}
+type LegalityCheck =
+  | { status: "legal"; printingId: string | null }
+  | { status: "not_legal" }
+  | { status: "unavailable" };
 
-/** A card is addable only if the catalog says Pauper-legal. */
+/**
+ * A card is addable only if the catalog says Pauper-legal. Fails closed, but
+ * distinguishes a card that is genuinely absent from the catalog from the
+ * catalog being unreachable, so the UI reports the real reason instead of
+ * blaming the card.
+ */
 async function checkPauperLegality(oracleId: string): Promise<LegalityCheck> {
-  if (!isMongoConfigured()) return { ok: true, printingId: null };
+  if (!isMongoConfigured()) return { status: "unavailable" };
   try {
     const card = await getCardByOracleId(oracleId);
-    if (!card || !isPauperLegal(card)) return { ok: false, printingId: null };
+    if (!card || !isPauperLegal(card)) return { status: "not_legal" };
     return {
-      ok: true,
+      status: "legal",
       printingId: card.metagame_printing_id ?? card.default_printing_id ?? null,
     };
   } catch {
-    return { ok: false, printingId: null };
+    return { status: "unavailable" };
   }
 }
 
@@ -422,13 +451,22 @@ export async function addDeckCard(input: {
 }): Promise<ActionResult> {
   const ctx = await context();
   if (!ctx.ok) return { ok: false, error: ctx.error };
+  if (!isMongoConfigured()) {
+    return { ok: false, error: "card_catalog_unavailable" };
+  }
+  if (!(await ownedDeck(ctx.supabase, input.deckId, ctx.session.id))) {
+    return { ok: false, error: "not_found" };
+  }
 
   const board = boardSchema.safeParse(input.board ?? "main");
   if (!board.success) return { ok: false, error: "invalid_board" };
   const quantity = Math.max(1, Math.min(999, input.quantity ?? 1));
 
   const legality = await checkPauperLegality(input.oracleId);
-  if (!legality.ok) {
+  if (legality.status === "unavailable") {
+    return { ok: false, error: "card_catalog_unavailable" };
+  }
+  if (legality.status !== "legal") {
     return { ok: false, error: "not_pauper_legal" };
   }
   const printingId = input.printingId ?? legality.printingId;
@@ -483,6 +521,9 @@ export async function updateDeckCard(input: {
 }): Promise<ActionResult> {
   const ctx = await context();
   if (!ctx.ok) return { ok: false, error: ctx.error };
+  if (!(await ownedDeck(ctx.supabase, input.deckId, ctx.session.id))) {
+    return { ok: false, error: "not_found" };
+  }
 
   const patch: Record<string, unknown> = {};
   if (input.printingId !== undefined) patch.printing_id = input.printingId;
@@ -492,7 +533,8 @@ export async function updateDeckCard(input: {
       const { error } = await ctx.supabase
         .from("deck_cards")
         .delete()
-        .eq("id", input.cardId);
+        .eq("id", input.cardId)
+        .eq("deck_id", input.deckId);
       if (error) return { ok: false, error: error.message };
       revalidateDeck(input.deckId);
       return { ok: true };
@@ -511,7 +553,8 @@ export async function updateDeckCard(input: {
   const { error } = await ctx.supabase
     .from("deck_cards")
     .update(patch)
-    .eq("id", input.cardId);
+    .eq("id", input.cardId)
+    .eq("deck_id", input.deckId);
   if (error) return { ok: false, error: error.message };
   revalidateDeck(input.deckId);
   return { ok: true };
@@ -523,32 +566,21 @@ export async function removeDeckCard(input: {
 }): Promise<ActionResult> {
   const ctx = await context();
   if (!ctx.ok) return { ok: false, error: ctx.error };
+  if (!(await ownedDeck(ctx.supabase, input.deckId, ctx.session.id))) {
+    return { ok: false, error: "not_found" };
+  }
   const { error } = await ctx.supabase
     .from("deck_cards")
     .delete()
-    .eq("id", input.cardId);
+    .eq("id", input.cardId)
+    .eq("deck_id", input.deckId);
   if (error) return { ok: false, error: error.message };
   revalidateDeck(input.deckId);
   return { ok: true };
 }
 
-export async function clearDeckBoard(input: {
-  deckId: string;
-  board: DeckBoard;
-}): Promise<ActionResult> {
-  const ctx = await context();
-  if (!ctx.ok) return { ok: false, error: ctx.error };
-  const { error } = await ctx.supabase
-    .from("deck_cards")
-    .delete()
-    .eq("deck_id", input.deckId)
-    .eq("board", input.board);
-  if (error) return { ok: false, error: error.message };
-  revalidateDeck(input.deckId);
-  return { ok: true };
-}
-
-const LINE_PATTERN = /^(\d+)\s+(.+)$/;
+/** Matches "4 Card", "4x Card", and "SB: 4 Card" (sideboard prefix). */
+const LINE_PATTERN = /^(?:(SB):\s*)?(\d+)x?\s+(.+)$/i;
 
 function cleanCardName(raw: string): string {
   let name = raw.trim();
@@ -570,6 +602,12 @@ export async function importDecklist(input: {
   if (!isMongoConfigured()) {
     return { ok: false, error: "card_catalog_unavailable" };
   }
+  if (!(await ownedDeck(ctx.supabase, input.deckId, ctx.session.id))) {
+    return { ok: false, error: "not_found" };
+  }
+  if (input.text.length > 100_000) {
+    return { ok: false, error: "list_too_long" };
+  }
 
   const defaultBoard = input.board ?? "main";
   const lines = input.text.split(/\r?\n/);
@@ -589,16 +627,27 @@ export async function importDecklist(input: {
     }
     const match = trimmed.match(LINE_PATTERN);
     if (!match) continue;
-    const quantity = Number.parseInt(match[1], 10);
+    const quantity = Number.parseInt(match[2], 10);
     if (!Number.isFinite(quantity) || quantity <= 0) continue;
-    const name = cleanCardName(match[2]);
-    if (name) entries.push({ quantity, name, board: currentBoard });
+    const name = cleanCardName(match[3]);
+    if (name) {
+      entries.push({
+        quantity,
+        name,
+        board: match[1] ? "side" : currentBoard,
+      });
+    }
   }
 
   if (!entries.length) return { ok: false, error: "empty_list" };
 
   const uniqueNames = [...new Set(entries.map((entry) => entry.name))];
-  const found = await getCardsByNames(uniqueNames).catch(() => []);
+  let found: Awaited<ReturnType<typeof getCardsByNames>>;
+  try {
+    found = await getCardsByNames(uniqueNames);
+  } catch {
+    return { ok: false, error: "card_catalog_unavailable" };
+  }
   const byName = new Map(
     found
       .filter(isPauperLegal)
@@ -606,10 +655,33 @@ export async function importDecklist(input: {
   );
 
   if (input.mode === "replace") {
+    // Only clear the board(s) the parsed list actually targets, so
+    // replacing a sideboard import never wipes the mainboard (and vice versa).
+    const targetBoards = [...new Set(entries.map((entry) => entry.board))];
     await ctx.supabase
       .from("deck_cards")
       .delete()
-      .eq("deck_id", input.deckId);
+      .eq("deck_id", input.deckId)
+      .in("board", targetBoards);
+  }
+
+  // One query for the deck's existing rows, then diff in memory, rather than
+  // a SELECT per imported line.
+  const { data: existingData } = await ctx.supabase
+    .from("deck_cards")
+    .select("id,oracle_id,board,quantity")
+    .eq("deck_id", input.deckId);
+  const existingByKey = new Map<string, { id: string; quantity: number }>();
+  for (const row of (existingData ?? []) as {
+    id: string;
+    oracle_id: string;
+    board: string;
+    quantity: number;
+  }[]) {
+    existingByKey.set(`${row.board}:${row.oracle_id}`, {
+      id: row.id,
+      quantity: row.quantity,
+    });
   }
 
   const skipped: string[] = [];
@@ -622,30 +694,36 @@ export async function importDecklist(input: {
       continue;
     }
 
-    const { data: existing } = await ctx.supabase
-      .from("deck_cards")
-      .select("id,quantity")
-      .eq("deck_id", input.deckId)
-      .eq("board", entry.board)
-      .eq("oracle_id", card.oracle_id)
-      .maybeSingle();
+    const key = `${entry.board}:${card.oracle_id}`;
+    const existing = existingByKey.get(key);
 
     if (existing) {
-      const current = (existing as { id: string; quantity: number }).quantity;
+      const next = Math.min(999, existing.quantity + entry.quantity);
       await ctx.supabase
         .from("deck_cards")
-        .update({ quantity: Math.min(999, current + entry.quantity) })
-        .eq("id", (existing as { id: string }).id);
+        .update({ quantity: next })
+        .eq("id", existing.id);
+      existing.quantity = next;
     } else {
-      await ctx.supabase.from("deck_cards").insert({
-        deck_id: input.deckId,
-        oracle_id: card.oracle_id,
-        printing_id:
-          card.metagame_printing_id ?? card.default_printing_id ?? null,
-        card_name: card.name,
-        quantity: Math.min(999, entry.quantity),
-        board: entry.board,
-      });
+      const { data: inserted } = await ctx.supabase
+        .from("deck_cards")
+        .insert({
+          deck_id: input.deckId,
+          oracle_id: card.oracle_id,
+          printing_id:
+            card.metagame_printing_id ?? card.default_printing_id ?? null,
+          card_name: card.name,
+          quantity: Math.min(999, entry.quantity),
+          board: entry.board,
+        })
+        .select("id,quantity")
+        .single();
+      if (inserted) {
+        existingByKey.set(key, {
+          id: (inserted as { id: string }).id,
+          quantity: (inserted as { quantity: number }).quantity,
+        });
+      }
     }
     added += entry.quantity;
   }
@@ -665,6 +743,17 @@ export async function addDeckComment(input: {
   const body = input.body.trim();
   if (!body || body.length > 2000) return { ok: false, error: "invalid_comment" };
 
+  const { data: deckData } = await ctx.supabase
+    .from("decks")
+    .select("id,user_id,visibility")
+    .eq("id", input.deckId)
+    .maybeSingle();
+  const deck = deckData as Pick<Deck, "id" | "user_id" | "visibility"> | null;
+  const canComment =
+    deck &&
+    (deck.visibility !== "private" || deck.user_id === ctx.session.id);
+  if (!canComment) return { ok: false, error: "not_found" };
+
   const { error } = await ctx.supabase.from("deck_comments").insert({
     deck_id: input.deckId,
     user_id: ctx.session.id,
@@ -683,6 +772,19 @@ export async function deleteDeckComment(input: {
 }): Promise<ActionResult> {
   const ctx = await context();
   if (!ctx.ok) return { ok: false, error: ctx.error };
+
+  // Authors may delete their own comments; deck owners may moderate any.
+  const { data: commentData } = await ctx.supabase
+    .from("deck_comments")
+    .select("user_id")
+    .eq("id", input.commentId)
+    .maybeSingle();
+  const comment = commentData as { user_id: string } | null;
+  if (!comment) return { ok: false, error: "not_found" };
+  const isAuthor = comment.user_id === ctx.session.id;
+  const isOwner = await ownedDeck(ctx.supabase, input.deckId, ctx.session.id);
+  if (!isAuthor && !isOwner) return { ok: false, error: "not_found" };
+
   const { error } = await ctx.supabase
     .from("deck_comments")
     .delete()
@@ -707,6 +809,9 @@ export async function cloneUserDeck(input: {
     .maybeSingle();
   const source = sourceData as Deck | null;
   if (!source) return { ok: false, error: "deck_not_found" };
+  if (source.visibility === "private" && source.user_id !== ctx.session.id) {
+    return { ok: false, error: "deck_not_found" };
+  }
 
   const { data: cardData } = await ctx.supabase
     .from("deck_cards")

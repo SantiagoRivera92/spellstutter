@@ -21,31 +21,79 @@ export function DropdownMenu({
 }: DropdownMenuProps) {
   const [open, setOpen] = React.useState(false);
   const containerRef = React.useRef<HTMLDivElement>(null);
+  const triggerRef = React.useRef<HTMLButtonElement>(null);
+  const menuRef = React.useRef<HTMLDivElement>(null);
+  const menuId = React.useId();
+
+  const closeAndRestoreFocus = React.useCallback(() => {
+    setOpen(false);
+    triggerRef.current?.focus();
+  }, []);
 
   React.useEffect(() => {
     if (!open) return;
+    const items = () =>
+      Array.from(
+        menuRef.current?.querySelectorAll<HTMLElement>(
+          '[role="menuitem"]:not([disabled])',
+        ) ?? [],
+      );
+
+    items()[0]?.focus();
+
     function onPointerDown(event: PointerEvent) {
       if (!containerRef.current?.contains(event.target as Node)) {
         setOpen(false);
       }
     }
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") setOpen(false);
+      const list = items();
+      if (!list.length) return;
+      const index = list.indexOf(document.activeElement as HTMLElement);
+      switch (event.key) {
+        case "ArrowDown":
+          event.preventDefault();
+          list[(index + 1) % list.length].focus();
+          break;
+        case "ArrowUp":
+          event.preventDefault();
+          list[(index - 1 + list.length) % list.length].focus();
+          break;
+        case "Home":
+          event.preventDefault();
+          list[0].focus();
+          break;
+        case "End":
+          event.preventDefault();
+          list[list.length - 1].focus();
+          break;
+        case "Tab":
+          // Let focus leave the menu naturally.
+          setOpen(false);
+          break;
+        case "Escape":
+          event.preventDefault();
+          closeAndRestoreFocus();
+          break;
+      }
     }
+
     document.addEventListener("pointerdown", onPointerDown);
     document.addEventListener("keydown", onKeyDown);
     return () => {
       document.removeEventListener("pointerdown", onPointerDown);
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, [open]);
+  }, [open, closeAndRestoreFocus]);
 
   return (
     <div ref={containerRef} className="relative">
       <button
+        ref={triggerRef}
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
+        aria-controls={menuId}
         aria-label={label}
         onClick={() => setOpen((value) => !value)}
         className="inline-flex items-center"
@@ -54,15 +102,24 @@ export function DropdownMenu({
       </button>
       {open ? (
         <div
+          ref={menuRef}
+          id={menuId}
           role="menu"
           aria-label={label}
+          onClick={(event) => {
+            if (
+              (event.target as HTMLElement).closest('[role="menuitem"]')
+            ) {
+              setOpen(false);
+            }
+          }}
           className={cn(
             "absolute z-40 mt-1 min-w-52 overflow-hidden rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-lg animate-in",
             align === "end" ? "right-0" : "left-0",
             className,
           )}
         >
-          <div onClick={() => setOpen(false)}>{children}</div>
+          {children}
         </div>
       ) : null}
     </div>

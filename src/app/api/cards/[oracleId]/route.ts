@@ -1,12 +1,17 @@
+import type { NextRequest } from "next/server";
 import { getCardByOracleId, getPrintings } from "@/lib/cards/queries";
 import { isMongoConfigured } from "@/lib/env";
+import { rateLimitResponse } from "@/lib/http/rate-limit";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(
-  _request: Request,
+  request: NextRequest,
   context: RouteContext<"/api/cards/[oracleId]">,
 ) {
+  const limited = rateLimitResponse(request, "api:cards:lookup", 120);
+  if (limited) return limited;
+
   if (!isMongoConfigured()) {
     return Response.json(
       { error: "card_catalog_unavailable" },

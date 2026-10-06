@@ -2,8 +2,11 @@ import type { CardColor } from "./types";
 import { COLOR_ORDER } from "./mana";
 
 /**
- * A practical subset of Scryfall search syntax, enough to power the deckbuilder
- * search box without a full grammar:
+ * A practical subset of Scryfall search syntax, parsed against the local Mongo
+ * catalog (used by `/api/cards/search`). Note the deckbuilder UI instead proxies
+ * live Scryfall results, so this parser is only on the Mongo-backed path.
+ *
+ * Supported filters:
  *
  *   lightning bolt        name terms (all must match)
  *   !"Counterspell"       exact name

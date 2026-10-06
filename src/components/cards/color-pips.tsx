@@ -22,10 +22,11 @@ export function ColorPips({
 
   return (
     <span
+      role={label ? "img" : undefined}
       className={cn("inline-flex shrink-0 items-center gap-0.5", className)}
       aria-label={label ? description : undefined}
       aria-hidden={label ? undefined : true}
-      title={description}
+      title={label ? undefined : description}
     >
       {symbols.map((symbol) => (
         <Image

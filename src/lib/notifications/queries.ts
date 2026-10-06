@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { getSession } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type {
@@ -17,7 +18,8 @@ function toAuthor(profile: Profile | undefined): CommentAuthor | null {
   };
 }
 
-export async function getUnreadNotificationCount(): Promise<number> {
+/** Cached per request; the header only needs this once per render. */
+export const getUnreadNotificationCount = cache(async (): Promise<number> => {
   const session = await getSession();
   if (!session) return 0;
   const supabase = await createSupabaseServerClient();
@@ -27,7 +29,7 @@ export async function getUnreadNotificationCount(): Promise<number> {
     .eq("user_id", session.id)
     .is("read_at", null);
   return count ?? 0;
-}
+});
 
 export async function getNotifications(
   limit = 50,

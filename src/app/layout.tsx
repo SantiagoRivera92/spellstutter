@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import Script from "next/script";
 import { Bricolage_Grotesque, Instrument_Sans } from "next/font/google";
 import "./globals.css";
@@ -23,18 +24,37 @@ const instrument = Instrument_Sans({
 // request-time rather than statically prerendered.
 export const dynamic = "force-dynamic";
 
+const siteDescription =
+  "Build Pauper decks with a drag-and-drop editor, organize them in folders, and track the metagame.";
+
+// Use the configured origin when present; otherwise omit metadataBase so Next
+// infers it from the request instead of hard-coding localhost in production.
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim().replace(/\/+$/, "");
+
 export const metadata: Metadata = {
+  ...(siteUrl ? { metadataBase: new URL(siteUrl) } : {}),
   title: {
     default: "Spellstutter — Pauper deckbuilding and metagame",
     template: "%s · Spellstutter",
   },
-  description:
-    "Build Pauper decks with a drag-and-drop editor, organize them in folders, and track the metagame.",
+  description: siteDescription,
+  openGraph: {
+    type: "website",
+    siteName: "Spellstutter",
+    title: "Spellstutter — Pauper deckbuilding and metagame",
+    description: siteDescription,
+  },
+  twitter: {
+    card: "summary",
+    title: "Spellstutter — Pauper deckbuilding and metagame",
+    description: siteDescription,
+  },
 };
 
 const themeScript = `(function(){try{var t=localStorage.getItem("spellstutter-theme");if(t!=="light"&&t!=="dark"){t="dark"}document.documentElement.dataset.theme=t;}catch(e){document.documentElement.dataset.theme="dark"}})();`;
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
     <html
       lang="en"
@@ -45,6 +65,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <head>
         <Script
           id="theme-init"
+          nonce={nonce}
           strategy="beforeInteractive"
           dangerouslySetInnerHTML={{ __html: themeScript }}
         />

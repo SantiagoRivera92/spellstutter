@@ -10,7 +10,12 @@ import { listArchetypes } from "@/lib/metagame/queries";
 export const metadata: Metadata = { title: "My decks" };
 export const dynamic = "force-dynamic";
 
-export default async function DecksPage() {
+export default async function DecksPage({
+  searchParams,
+}: PageProps<"/decks">) {
+  const params = await searchParams;
+  const passwordUpdated = params.password === "updated";
+
   if (!isSupabaseConfigured()) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-8">
@@ -18,11 +23,10 @@ export default async function DecksPage() {
         <div className="mt-6">
           <SetupNotice title="Connect Supabase" icon="key">
             <p>
-              Set <code className="font-mono text-foreground">NEXT_PUBLIC_SUPABASE_URL</code>,{" "}
-              <code className="font-mono text-foreground">NEXT_PUBLIC_SUPABASE_ANON_KEY</code>,
-              and <code className="font-mono text-foreground">SUPABASE_SERVICE_ROLE_KEY</code>{" "}
+              Set <code className="font-mono text-foreground">NEXT_PUBLIC_SUPABASE_URL</code>{" "}
+              and <code className="font-mono text-foreground">NEXT_PUBLIC_SUPABASE_ANON_KEY</code>{" "}
               in <code className="font-mono text-foreground">.env.local</code>,
-              then apply the migration in{" "}
+              then apply the migrations in{" "}
               <code className="font-mono text-foreground">supabase/migrations</code>.
             </p>
           </SetupNotice>
@@ -42,6 +46,14 @@ export default async function DecksPage() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
+      {passwordUpdated ? (
+        <p
+          role="status"
+          className="mb-6 rounded-md border border-primary/40 bg-primary/10 px-3 py-2 text-sm text-foreground"
+        >
+          Your password has been updated.
+        </p>
+      ) : null}
       <PageHeader
         title="My decks"
         description="Group decks into nested folders. Start from scratch or seed a list from an archetype's core."

@@ -59,6 +59,16 @@ export function AuthForm({ mode, action, next }: AuthFormProps) {
       <Field
         label="Email"
         htmlFor="email"
+        helper={
+          mode === "signin" ? (
+            <Link
+              href="/forgot-password"
+              className="text-xs text-primary hover:underline"
+            >
+              Forgot password?
+            </Link>
+          ) : undefined
+        }
         error={state.fieldErrors?.email}
       >
         <Input

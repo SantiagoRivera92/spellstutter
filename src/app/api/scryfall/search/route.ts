@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { ScryfallError, scryfallSearch } from "@/lib/scryfall/client";
+import { rateLimitResponse } from "@/lib/http/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +11,9 @@ const querySchema = z.object({
 });
 
 export async function GET(request: NextRequest) {
+  const limited = rateLimitResponse(request, "api:scryfall:search", 30);
+  if (limited) return limited;
+
   const parsed = querySchema.safeParse(
     Object.fromEntries(request.nextUrl.searchParams.entries()),
   );

@@ -20,8 +20,26 @@ export async function generateMetadata({
 }: PageProps<"/decks/[deckId]">): Promise<Metadata> {
   const { deckId } = await params;
   if (!isSupabaseConfigured()) return { title: "Deck" };
-  const view = await getDeckView(deckId);
-  return { title: view?.deck.name ?? "Deck" };
+  const view = await getDeckView(deckId).catch(() => null);
+  const title = view?.deck.name ?? "Deck";
+  const description =
+    view?.deck.description ?? "A Pauper deck on Spellstutter.";
+  const image = view?.deck.cover_art_url ?? undefined;
+  return {
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      images: image ? [image] : undefined,
+    },
+    twitter: {
+      card: image ? "summary_large_image" : "summary",
+      title,
+      description,
+      images: image ? [image] : undefined,
+    },
+  };
 }
 
 export default async function DeckPage({ params }: PageProps<"/decks/[deckId]">) {

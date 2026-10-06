@@ -4,6 +4,7 @@ import { getCardsByOracleIds, getPrintingsByIds } from "@/lib/cards/queries";
 import type { CardColor } from "@/lib/cards/types";
 import { getSession } from "@/lib/auth/session";
 import { isMongoConfigured } from "@/lib/env";
+import { frontFace } from "@/lib/metagame/card-type";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type {
   CommentAuthor,
@@ -47,6 +48,16 @@ function buildTree(folders: Folder[], deckCounts: Map<string, number>): FolderNo
   };
   sort(roots);
   return roots;
+}
+
+/** Batch-fetch the colour identity for a set of oracle ids from the catalog. */
+async function buildIdentityMap(
+  oracleIds: string[],
+): Promise<Map<string, CardColor[]>> {
+  const ids = [...new Set(oracleIds.filter(Boolean))];
+  if (!isMongoConfigured() || !ids.length) return new Map();
+  const cards = await getCardsByOracleIds(ids).catch(() => []);
+  return new Map(cards.map((card) => [card.oracle_id, card.color_identity]));
 }
 
 function summarize(
@@ -107,13 +118,8 @@ export async function getLibrary(): Promise<Library | null> {
     cards = (data ?? []) as typeof cards;
   }
 
-  const oracleIds = [...new Set(cards.map((card) => card.oracle_id))];
-  const mongoCards =
-    isMongoConfigured() && oracleIds.length
-      ? await getCardsByOracleIds(oracleIds).catch(() => [])
-      : [];
-  const identityByOracle = new Map(
-    mongoCards.map((card) => [card.oracle_id, card.color_identity]),
+  const identityByOracle = await buildIdentityMap(
+    cards.map((card) => card.oracle_id),
   );
 
   const byDeck = new Map<string, typeof cards>();
@@ -193,7 +199,7 @@ export async function getDeckView(deckId: string): Promise<DeckView | null> {
       mana_cost: manaCost,
       mana_costs: faceCosts.length ? faceCosts : manaCost ? [manaCost] : [],
       mana_value: details?.cmc ?? 0,
-      type_line: typeLine,
+      type_line: frontFace(typeLine),
       oracle_text: details?.oracle_text ?? "",
       rarity: printing?.rarity ?? details?.rarity ?? "common",
       mtgo_id: printing?.mtgo_id ?? details?.mtgo_id ?? null,
@@ -253,6 +259,10 @@ export async function getPublicProfile(username: string): Promise<{
     cards = (data ?? []) as typeof cards;
   }
 
+  const identityByOracle = await buildIdentityMap(
+    cards.map((card) => card.oracle_id),
+  );
+
   const byDeck = new Map<string, typeof cards>();
   for (const card of cards) {
     const list = byDeck.get(card.deck_id) ?? [];
@@ -263,7 +273,7 @@ export async function getPublicProfile(username: string): Promise<{
   return {
     profile,
     decks: decks.map((deck) =>
-      summarize(deck, byDeck.get(deck.id) ?? [], new Map()),
+      summarize(deck, byDeck.get(deck.id) ?? [], identityByOracle),
     ),
   };
 }
@@ -278,16 +288,6 @@ export async function getProfileByUserId(
     .eq("id", userId)
     .maybeSingle();
   return (data as Profile | null) ?? null;
-}
-
-export async function getDeckOwnerId(deckId: string): Promise<string | null> {
-  const supabase = await createSupabaseServerClient();
-  const { data } = await supabase
-    .from("decks")
-    .select("user_id")
-    .eq("id", deckId)
-    .maybeSingle();
-  return (data as { user_id: string } | null)?.user_id ?? null;
 }
 
 export interface PublicDeckSummary {
@@ -346,13 +346,8 @@ export async function getPublicDecks(limit = 60): Promise<PublicDeckSummary[]> {
     ]),
   );
 
-  const oracleIds = [...new Set(cards.map((card) => card.oracle_id))];
-  const mongoCards =
-    isMongoConfigured() && oracleIds.length
-      ? await getCardsByOracleIds(oracleIds).catch(() => [])
-      : [];
-  const identityByOracle = new Map(
-    mongoCards.map((card) => [card.oracle_id, card.color_identity]),
+  const identityByOracle = await buildIdentityMap(
+    cards.map((card) => card.oracle_id),
   );
 
   const byDeck = new Map<string, typeof cards>();

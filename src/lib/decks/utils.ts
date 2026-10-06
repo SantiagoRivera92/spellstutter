@@ -1,10 +1,11 @@
 import type { CardColor } from "@/lib/cards/types";
 import { COLOR_ORDER, manaValueBucket } from "@/lib/cards/mana";
+import { frontFace } from "@/lib/metagame/card-type";
 import type { DeckStats } from "./types";
 import type { DeckCardView } from "./types";
 
 export function deriveCategory(typeLine: string): DeckCardView["category_group"] {
-  const type = typeLine.toLowerCase();
+  const type = frontFace(typeLine).toLowerCase();
   if (type.includes("creature")) return "Creature";
   if (type.includes("planeswalker")) return "Planeswalker";
   if (type.includes("land")) return "Land";
@@ -101,7 +102,7 @@ export function groupByCategory(cards: DeckCardView[]) {
   return CATEGORY_ORDER.filter((category) => groups.has(category)).map(
     (category) => ({
       category,
-      cards: groups.get(category)!,
+      cards: groups.get(category)!.sort(compareDeckCards),
     }),
   );
 }

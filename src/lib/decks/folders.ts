@@ -18,18 +18,6 @@ export function flattenFolders(
   return result;
 }
 
-export function findFolder(
-  nodes: FolderNode[],
-  id: string,
-): FolderNode | null {
-  for (const node of nodes) {
-    if (node.id === id) return node;
-    const found = findFolder(node.children, id);
-    if (found) return found;
-  }
-  return null;
-}
-
 /** Folder ids that cannot be chosen as a destination for `folderId`. */
 export function collectDescendantIds(folder: FolderNode): string[] {
   const ids = [folder.id];

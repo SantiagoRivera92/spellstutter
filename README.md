@@ -55,7 +55,7 @@ cp .env.example .env.local
 ```bash
 docker compose up -d mongo
 # or, without the compose plugin:
-# docker run -d --name spellstutter-mongo -p 27017:27017 mongo:7
+# docker run -d --name spellstutter-mongo -p 27017:27017 mongo:8
 ```
 
 ### 2. Load the card catalog
@@ -102,11 +102,16 @@ pnpm sync:reclassify -- --dry-run
 
 1. Create a Supabase project.
 2. Apply the schema — either `supabase db push` (Supabase CLI) or paste each
-   file in `supabase/migrations/` into the SQL editor in order. The init
-   migration creates `profiles`, `folders`, `decks`, `deck_cards`, all RLS
-   policies, the folder cycle guard, and the signup trigger that provisions a
-   profile; `20260929120000_deck_archetype.sql` adds `decks.archetype_slug` for
-   archetype-seeded decks.
+   file in `supabase/migrations/` into the SQL editor in order:
+   - `20260928120000_init.sql` — `profiles`, `folders`, `decks`, `deck_cards`,
+     their RLS policies, the folder cycle guard, and the signup trigger that
+     provisions a profile.
+   - `20260929120000_deck_archetype.sql` — `decks.archetype_slug` for
+     archetype-seeded decks.
+   - `20260930120000_comments_notifications.sql` — `deck_comments` and
+     `notifications` tables, RLS, and the comment notification trigger.
+   - `20260930130000_comment_insert_policy.sql` — the insert policy that lets
+     signed-in users comment on decks they can read.
 3. Put the project URL, anon key, and service-role key in `.env.local`.
 4. In Authentication → URL configuration, add `http://localhost:3000/auth/callback`
    (and your production callback) as a redirect URL.
@@ -125,7 +130,7 @@ pnpm dev
 | `MONGODB_DB` | app + both syncs | defaults to `spellstutter` |
 | `NEXT_PUBLIC_SUPABASE_URL` | app | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | app | browser-safe key |
-| `SUPABASE_SERVICE_ROLE_KEY` | server only | never expose to the client |
+| `NEXT_PUBLIC_SITE_URL` | app | canonical origin for auth redirects (optional locally) |
 | `SCRYFALL_USER_AGENT` | syncs | Scryfall asks for a descriptive UA + contact |
 
 ## GitHub Actions
@@ -148,6 +153,7 @@ Configure in the repository:
 | `pnpm build` / `pnpm start` | production build / serve |
 | `pnpm lint` | ESLint |
 | `pnpm typecheck` | `tsc --noEmit` |
+| `pnpm test` | unit tests for the archetype rules + search-syntax parser |
 | `pnpm sync:cards` | Scryfall → Mongo |
 | `pnpm sync:metagame` | MTGO → Mongo |
 | `pnpm sync:reclassify` | Re-apply archetype rules to stored decks (no network) |
@@ -157,22 +163,28 @@ Configure in the repository:
 ```
 src/
   app/
-    (auth)/            login + signup (server actions)
+    (auth)/            login, signup, forgot/reset password (server actions)
     api/cards/         Mongo card detail route handlers
     api/scryfall/      Scryfall search proxy
     cards/             card search
     cards/[oracleId]/  card page (printings, legality, archetype usage)
-    decks/             library, deck view, deck editor
-    metagame/          events, event detail, archetypes
+    decks/             library, deck view, deck editor, public decks
+    events/            MTGO event list + detail
+    metagame/          metagame overview + archetypes
+    notifications/     comment + reply notifications
+    staples/           staple leaderboards (+ per-category sub-pages)
     settings/profile/  profile + avatar
     users/[username]/  public profile
+    error.tsx / loading.tsx / sitemap.ts / robots.ts
   components/          ui primitives, cards, decks, metagame, layout
   lib/
     cards/             types, mana helpers, search-syntax parser, Mongo queries
     scryfall/          API client + normalization (shared with the sync script)
     decks/             queries, actions, stats, export
-    metagame/          types, archetype rules, Mongo queries
-    supabase/          browser/server/admin clients + proxy session helper
+    metagame/          types, archetype rules (+ tests), Mongo queries
+    auth/              session, safe redirects, rate limiting
+    http/              route-handler rate limiting
+    supabase/          server client + proxy session helper
 scripts/               sync-scryfall.ts, scrape-metagame.ts
 supabase/migrations/   Postgres schema + RLS
 ```

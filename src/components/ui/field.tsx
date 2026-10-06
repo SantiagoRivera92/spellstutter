@@ -67,6 +67,8 @@ export interface FieldProps {
   error?: string;
   success?: string;
   optional?: boolean;
+  /** Optional trailing content on the label row (e.g. a "Forgot password?" link). */
+  helper?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
 }
@@ -78,6 +80,7 @@ export function Field({
   error,
   success,
   optional,
+  helper,
   children,
   className,
 }: FieldProps) {
@@ -87,9 +90,10 @@ export function Field({
         <label htmlFor={htmlFor} className="text-sm font-medium">
           {label}
         </label>
-        {optional ? (
-          <span className="text-xs text-muted-foreground">Optional</span>
-        ) : null}
+        {helper ??
+          (optional ? (
+            <span className="text-xs text-muted-foreground">Optional</span>
+          ) : null)}
       </div>
       {description ? (
         <p id={`${htmlFor}-description`} className="text-xs text-muted-foreground">

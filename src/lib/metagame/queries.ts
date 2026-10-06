@@ -3,7 +3,7 @@ import { COLLECTIONS, getDb } from "@/lib/mongo/client";
 import { getCardsByOracleIds, getPrintingsByIds } from "@/lib/cards/queries";
 import { COLOR_ORDER } from "@/lib/cards/mana";
 import type { Card, CardColor } from "@/lib/cards/types";
-import { categoryFor } from "./card-type";
+import { categoryFor, frontFace } from "./card-type";
 import type {
   ArchetypeBreakdown,
   ArchetypeCardStat,
@@ -61,9 +61,11 @@ export async function listDecksByArchetype(
 
 export async function listArchetypes(): Promise<ArchetypeOption[]> {
   const db = await getDb();
+  const since = isoDateDaysAgo(120);
   const rows = await db
     .collection<MetagameDeck>(COLLECTIONS.decks)
     .aggregate<{ _id: string; name: string; decks: number }>([
+      { $match: { event_date: { $gte: since } } },
       {
         $group: {
           _id: "$archetype.slug",
@@ -109,9 +111,25 @@ const COLOR_SHARE_THRESHOLD = 0.02;
  * just because one list splashes a sideboard card. Colours under the threshold
  * are treated as outliers and dropped.
  */
+const ARCHETYPE_COLORS_TTL_MS = 5 * 60_000;
+let archetypeColorsCache: {
+  since: string;
+  expires: number;
+  value: Map<string, CardColor[]>;
+} | null = null;
+
 async function getArchetypeColors(
   since: string,
 ): Promise<Map<string, CardColor[]>> {
+  const now = Date.now();
+  if (
+    archetypeColorsCache &&
+    archetypeColorsCache.since === since &&
+    archetypeColorsCache.expires > now
+  ) {
+    return archetypeColorsCache.value;
+  }
+
   const db = await getDb();
   const decks = db.collection<MetagameDeck>(COLLECTIONS.decks);
 
@@ -164,6 +182,11 @@ async function getArchetypeColors(
       ),
     );
   }
+  archetypeColorsCache = {
+    since,
+    expires: now + ARCHETYPE_COLORS_TTL_MS,
+    value: result,
+  };
   return result;
 }
 
@@ -644,7 +667,7 @@ export interface StaplesResult {
 }
 
 function stapleCategory(typeLine: string | null): "creature" | "noncreature" | "land" {
-  const type = (typeLine ?? "").toLowerCase();
+  const type = frontFace(typeLine).toLowerCase();
   if (type.includes("creature")) return "creature";
   if (type.includes("land")) return "land";
   return "noncreature";
@@ -689,7 +712,7 @@ function toStapleCards(rows: StapleAggRow[], totalDecks: number): StapleCard[] {
     oracle_id: row.oracle_id ?? null,
     image: row.image ?? null,
     art_crop: null,
-    type_line: row.type_line ?? null,
+    type_line: row.type_line ? frontFace(row.type_line) : null,
     decks: row.decks,
     copies: row.copies,
     inclusion: totalDecks ? row.decks / totalDecks : 0,
@@ -820,4 +843,74 @@ export async function listStapleCategory(
   const selected = cards.sort(byDecks).slice(0, limit);
   const [withArt] = await attachStapleArt([selected]);
   return { decks: totalDecks, cards: withArt };
+}
+
+/** Single-archetype statistics, without aggregating the whole metagame. */
+export async function getArchetypeStat(
+  slug: string,
+  days = 30,
+): Promise<ArchetypeStat | null> {
+  const db = await getDb();
+  const since = isoDateDaysAgo(days);
+  const decks = db.collection<MetagameDeck>(COLLECTIONS.decks);
+  const match = { "archetype.slug": slug, event_date: { $gte: since } };
+
+  const [totals, cardRows, deckCount, archetypeColors] = await Promise.all([
+    decks
+      .aggregate<TotalsRow>([
+        { $match: match },
+        {
+          $group: {
+            _id: "$archetype.slug",
+            name: { $first: "$archetype.name" },
+            decks: { $sum: 1 },
+            wins: { $sum: { $ifNull: ["$wins", 0] } },
+            losses: { $sum: { $ifNull: ["$losses", 0] } },
+            ranks: { $push: "$rank" },
+          },
+        },
+      ])
+      .toArray(),
+    decks
+      .aggregate<{ _id: string; count: number }>([
+        { $match: match },
+        { $unwind: "$mainboard" },
+        {
+          $group: {
+            _id: "$mainboard.name",
+            count: { $sum: "$mainboard.quantity" },
+          },
+        },
+        { $sort: { count: -1 } },
+        { $limit: 5 },
+      ])
+      .toArray(),
+    decks.countDocuments({ event_date: { $gte: since } }),
+    getArchetypeColors(since),
+  ]);
+
+  const row = totals[0];
+  if (!row) return null;
+
+  const wins = row.wins ?? 0;
+  const losses = row.losses ?? 0;
+  const decided = wins + losses;
+  const ranks = (row.ranks ?? []).filter(
+    (rank): rank is number => typeof rank === "number",
+  );
+
+  return {
+    slug: row._id,
+    name: row.name,
+    decks: row.decks,
+    meta_share: deckCount ? row.decks / deckCount : 0,
+    wins,
+    losses,
+    win_rate: decided > 0 ? wins / decided : null,
+    average_rank: ranks.length
+      ? ranks.reduce((sum, rank) => sum + rank, 0) / ranks.length
+      : null,
+    color_identity: archetypeColors.get(row._id) ?? [],
+    top_cards: cardRows.map((card) => ({ name: card._id, count: card.count })),
+  };
 }

@@ -20,35 +20,8 @@ export const MANA_SYMBOL_URL: Record<CardColor | "C", string> = {
   C: "https://svgs.scryfall.io/card-symbols/C.svg",
 };
 
-export const COLOR_PIPS: Record<CardColor, string> = {
-  W: "var(--color-mana-w)",
-  U: "var(--color-mana-u)",
-  B: "var(--color-mana-b)",
-  R: "var(--color-mana-r)",
-  G: "var(--color-mana-g)",
-};
-
-const PIP_TEXT: Record<CardColor, string> = {
-  W: "#4b311b",
-  U: "#0b2a45",
-  B: "#1c1826",
-  R: "#4b1109",
-  G: "#0f2f1d",
-};
-
-export function colorForeground(color: CardColor): string {
-  return PIP_TEXT[color];
-}
-
 export function sortColors(colors: CardColor[]): CardColor[] {
   return COLOR_ORDER.filter((color) => colors.includes(color));
-}
-
-export function colorIdentityLabel(colorIdentity: CardColor[]): string {
-  const sorted = sortColors(colorIdentity);
-  if (sorted.length === 0) return "Colorless";
-  if (sorted.length >= 5) return "Five-color";
-  return sorted.join("");
 }
 
 export interface ParsedManaSymbol {

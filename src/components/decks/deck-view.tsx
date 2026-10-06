@@ -7,7 +7,6 @@ import type { DeckCardView, DeckView as DeckViewData } from "@/lib/decks/types";
 import { compareDeckCards, groupByCategory } from "@/lib/decks/utils";
 import { cn, formatUsd } from "@/lib/utils";
 import { ManaCost } from "@/components/cards/mana-cost";
-import { rarityClass } from "@/components/cards/rarity";
 import { Select } from "@/components/ui/field";
 import { DeckStatsPanel } from "./deck-stats";
 
@@ -69,7 +68,7 @@ export function DeckView({ view }: { view: DeckViewData }) {
                 />
               ) : (
                 <p className="flex h-full items-center justify-center px-4 text-center text-xs text-muted-foreground">
-                  Hover a card to preview it here.
+                  Hover or focus a card to preview it here.
                 </p>
               )}
             </div>
@@ -194,6 +193,7 @@ function CompactList({
               key={card.id}
               className="flex items-center gap-2 border-b border-border/60 py-1 text-sm"
               onMouseEnter={() => onHover(card)}
+              onFocus={() => onHover(card)}
             >
               <span className="w-6 shrink-0 text-right numeric text-muted-foreground">
                 {card.quantity}
@@ -280,6 +280,7 @@ function CardImageGrid({
             key={card.id}
             className="group relative"
             onMouseEnter={() => onHover(card)}
+            onFocus={() => onHover(card)}
           >
             {card.oracle_id ? (
               <Link
@@ -313,7 +314,6 @@ function CardTable({
         <tr>
           <th scope="col">Quantity</th>
           <th scope="col">Card</th>
-          <th scope="col">Type</th>
           <th scope="col">Price</th>
         </tr>
       </thead>
@@ -321,8 +321,9 @@ function CardTable({
         {sorted.map((card) => (
           <tr
             key={card.id}
-            className="border-b border-border/60 last:border-0 hover:bg-muted/40"
+            className="border-b border-border/60 border-l-2 border-l-transparent focus-within:border-l-primary hover:bg-muted/40"
             onMouseEnter={() => onHover(card)}
+            onFocus={() => onHover(card)}
           >
             <td className="w-10 py-1.5 pr-2 text-right align-top numeric text-muted-foreground">
               {card.quantity}
@@ -341,9 +342,6 @@ function CardTable({
                 )}
                 <ManaCost cost={card.mana_costs} />
               </span>
-            </td>
-            <td className="hidden py-1.5 pr-3 align-top text-xs text-muted-foreground sm:table-cell">
-              <span className={rarityClass(card.rarity)}>•</span> {card.type_line}
             </td>
             <td className="hidden w-20 py-1.5 text-right align-top numeric text-xs text-muted-foreground md:table-cell">
               {formatUsd(card.price_usd)}

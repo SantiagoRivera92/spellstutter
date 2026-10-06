@@ -23,11 +23,23 @@ export async function getDb(): Promise<Db> {
       appName: "spellstutter",
       maxPoolSize: 10,
     });
-    cache.clientPromise = client.connect();
     cache.dbName = MONGODB_DB;
+    // If the initial connection fails (transient Atlas outage, an IP allowlist
+    // that has not propagated yet), drop the cached promise so the next
+    // request retries instead of awaiting one dead promise forever.
+    cache.clientPromise = client.connect().catch((error: unknown) => {
+      cache.clientPromise = null;
+      void client.close().catch(() => {});
+      throw error;
+    });
   }
-  const client = await cache.clientPromise;
-  return client.db(cache.dbName ?? MONGODB_DB);
+  try {
+    const client = await cache.clientPromise;
+    return client.db(cache.dbName ?? MONGODB_DB);
+  } catch (error) {
+    cache.clientPromise = null;
+    throw error;
+  }
 }
 
 export const COLLECTIONS = {

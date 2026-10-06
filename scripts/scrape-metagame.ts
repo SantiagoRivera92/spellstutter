@@ -203,6 +203,8 @@ function extractDecklistData(html: string): RawDecklistData | null {
 
 interface ResolvedCard {
   oracle_id: string;
+  /** Canonical normalized name, so alias lookups resolve identity correctly. */
+  name_normalized: string;
   printing_id: string | null;
   mana_cost: string | null;
   type_line: string | null;
@@ -283,6 +285,7 @@ async function buildCardIndex(db: Db): Promise<CardResolver> {
   for await (const doc of cursor) {
     const info: ResolvedCard = {
       oracle_id: doc.oracle_id,
+      name_normalized: normalizeName(doc.name),
       printing_id:
         doc.metagame_printing_id ?? doc.default_printing_id ?? null,
       mana_cost: doc.mana_cost ?? null,
@@ -322,7 +325,9 @@ function toEntries(
   }
   return [...map.entries()].map(([name, quantity]) => {
     const resolved = resolver.get(normalizeName(name));
-    const exempt = IDENTITY_EXEMPT_CARDS.has(normalizeName(name));
+    const exempt = IDENTITY_EXEMPT_CARDS.has(
+      resolved?.name_normalized ?? normalizeName(name),
+    );
     return {
       name,
       quantity,
@@ -340,14 +345,19 @@ function identityOf(cards: RawCard[], resolver: CardResolver): CardColor[] {
   for (const card of cards) {
     const name = card.card_attributes?.card_name;
     if (!name) continue;
-    if (IDENTITY_EXEMPT_CARDS.has(normalizeName(name))) continue;
+
+    const resolved = resolver.get(normalizeName(name));
+    if (
+      IDENTITY_EXEMPT_CARDS.has(resolved?.name_normalized ?? normalizeName(name))
+    ) {
+      continue;
+    }
 
     const mtgoColors: CardColor[] = [];
     for (const color of card.card_attributes?.colors ?? []) {
       const mapped = COLOR_MAP[color];
       if (mapped) mtgoColors.push(mapped);
     }
-    const resolved = resolver.get(normalizeName(name));
     for (const color of identityColors(
       resolved?.mana_cost ?? null,
       mtgoColors,
@@ -493,76 +503,74 @@ async function processSlug(
   slug: string,
   now: string,
 ) {
-  {
-    if (!options.force) {
-      const existing = await db
-        .collection("metagame_events")
-        .findOne({ slug }, { projection: { slug: 1 } });
-      if (existing) {
-        console.log(`[metagame] ${slug} already stored — skipping`);
-        return;
-      }
-    }
-
-    const res = await fetch(`${BASE}/decklist/${slug}`, { headers: headers() });
-    if (!res.ok) {
-      console.warn(`[metagame] ${slug}: ${res.status} ${res.statusText}`);
-      await sleep(DELAY_MS);
+  if (!options.force) {
+    const existing = await db
+      .collection("metagame_events")
+      .findOne({ slug }, { projection: { slug: 1 } });
+    if (existing) {
+      console.log(`[metagame] ${slug} already stored — skipping`);
       return;
     }
-    const html = await res.text();
-    const data = extractDecklistData(html);
-    if (!data) {
-      console.warn(`[metagame] ${slug}: no embedded deck data found`);
-      await sleep(DELAY_MS);
-      return;
-    }
-
-    const event = normalizeEvent(data, now);
-    const decks = normalizeDecks(
-      data,
-      event,
-      CLASSIFICATION_VERSION,
-      now,
-      resolver,
-    );
-    event.deck_count = decks.length;
-
-    if (options.dryRun) {
-      const counts = new Map<string, number>();
-      for (const deck of decks) {
-        counts.set(deck.archetype.name, (counts.get(deck.archetype.name) ?? 0) + 1);
-      }
-      console.log(
-        `[metagame] ${slug}: ${decks.length} decks — ${[...counts.entries()]
-          .sort((a, b) => b[1] - a[1])
-          .map(([name, count]) => `${name} ${count}`)
-          .join(", ")}`,
-      );
-    } else {
-      await db
-        .collection<MetagameEvent>("metagame_events")
-        .updateOne({ slug: event.slug }, { $set: event }, { upsert: true });
-
-      const operations: AnyBulkWriteOperation<MetagameDeck>[] = decks.map(
-        (deck) => ({
-          updateOne: {
-            filter: { event_slug: deck.event_slug, player: deck.player },
-            update: { $set: deck },
-            upsert: true,
-          },
-        }),
-      );
-      if (operations.length) {
-        await db
-          .collection<MetagameDeck>("metagame_decks")
-          .bulkWrite(operations, { ordered: false });
-      }
-      console.log(`[metagame] ${slug}: stored ${decks.length} decks`);
-    }
-
-    await sleep(DELAY_MS);
   }
+
+  const res = await fetch(`${BASE}/decklist/${slug}`, { headers: headers() });
+  if (!res.ok) {
+    console.warn(`[metagame] ${slug}: ${res.status} ${res.statusText}`);
+    await sleep(DELAY_MS);
+    return;
+  }
+  const html = await res.text();
+  const data = extractDecklistData(html);
+  if (!data) {
+    console.warn(`[metagame] ${slug}: no embedded deck data found`);
+    await sleep(DELAY_MS);
+    return;
+  }
+
+  const event = normalizeEvent(data, now);
+  const decks = normalizeDecks(
+    data,
+    event,
+    CLASSIFICATION_VERSION,
+    now,
+    resolver,
+  );
+  event.deck_count = decks.length;
+
+  if (options.dryRun) {
+    const counts = new Map<string, number>();
+    for (const deck of decks) {
+      counts.set(deck.archetype.name, (counts.get(deck.archetype.name) ?? 0) + 1);
+    }
+    console.log(
+      `[metagame] ${slug}: ${decks.length} decks — ${[...counts.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .map(([name, count]) => `${name} ${count}`)
+        .join(", ")}`,
+    );
+  } else {
+    await db
+      .collection<MetagameEvent>("metagame_events")
+      .updateOne({ slug: event.slug }, { $set: event }, { upsert: true });
+
+    const operations: AnyBulkWriteOperation<MetagameDeck>[] = decks.map(
+      (deck) => ({
+        updateOne: {
+          filter: { event_slug: deck.event_slug, player: deck.player },
+          update: { $set: deck },
+          upsert: true,
+        },
+      }),
+    );
+    if (operations.length) {
+      await db
+        .collection<MetagameDeck>("metagame_decks")
+        .bulkWrite(operations, { ordered: false });
+    }
+    console.log(`[metagame] ${slug}: stored ${decks.length} decks`);
+  }
+
+  await sleep(DELAY_MS);
 }
 
 async function run(db: Db, options: Options) {

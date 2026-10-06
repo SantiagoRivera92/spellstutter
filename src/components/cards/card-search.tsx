@@ -11,14 +11,13 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { Badge } from "@/components/ui/badge";
 import { ManaCost } from "./mana-cost";
-import { rarityClass } from "./rarity";
 
 interface CardSearchProps {
   onAddCard?: (card: CardSearchResult) => void;
   onSelectCard?: (card: CardSearchResult) => void;
   autoFocus?: boolean;
   draggable?: boolean;
-  /** Restrict results to Pauper-legal cards (e.g. the profile avatar picker). */
+  /** Restrict results to Pauper-legal cards (deckbuilding, avatar picker). */
   pauperOnly?: boolean;
   className?: string;
   emptyHint?: string;
@@ -32,7 +31,6 @@ const SYNTAX_EXAMPLES = [
   ["c:ub", "card colour"],
   ["id:wu", "colour identity"],
   ["cmc<=2", "mana value"],
-  ["r:common", "rarity"],
   ["is:spell", "card kind"],
   ["!" + '"Counterspell"', "exact name"],
 ];
@@ -66,7 +64,7 @@ export function CardSearch({
       setStatus("loading");
       if (!append) setMessage(null);
 
-      const searchQuery = pauperOnly ? `${trimmed} legal:pauper` : trimmed;
+      const searchQuery = pauperOnly ? `${trimmed} f:pauper` : trimmed;
 
       try {
         const response = await fetch(
@@ -169,6 +167,15 @@ export function CardSearch({
       ) : null}
 
       <div className="mt-3 flex min-h-0 flex-1 flex-col">
+        <p className="sr-only" role="status" aria-live="polite">
+          {active && status === "loading"
+            ? "Searching…"
+            : active && status === "error"
+              ? message
+              : active && status === "ready"
+                ? `${total} cards found, showing ${results.length}`
+                : ""}
+        </p>
         {!active ? (
           <p className="px-1 py-6 text-sm text-muted-foreground">{emptyHint}</p>
         ) : null}
@@ -286,9 +293,6 @@ function CardResultRow({
           )}
         </span>
         <span className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
-          <span className={cn("font-semibold", rarityClass(card.rarity))} title={card.rarity}>
-            {card.rarity.charAt(0).toUpperCase()}
-          </span>
           <span className="truncate">{card.type_line}</span>
         </span>
       </span>

@@ -17,7 +17,28 @@ export async function generateMetadata({
   params,
 }: PageProps<"/users/[username]">): Promise<Metadata> {
   const { username } = await params;
-  return { title: `@${username}` };
+  if (!isSupabaseConfigured()) return { title: `@${username}` };
+
+  const data = await getPublicProfile(username).catch(() => null);
+  const title = data?.profile.display_name ?? `@${username}`;
+  const description =
+    data?.profile.bio ?? `Pauper decks by @${username} on Spellstutter.`;
+  const image = data?.profile.avatar_art_url ?? undefined;
+  return {
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      images: image ? [image] : undefined,
+    },
+    twitter: {
+      card: image ? "summary_large_image" : "summary",
+      title,
+      description,
+      images: image ? [image] : undefined,
+    },
+  };
 }
 
 export default async function UserProfilePage({

@@ -195,33 +195,6 @@ export async function getCardsByNames(names: string[]): Promise<Card[]> {
     .toArray();
 }
 
-export async function isPauperLegalOracleId(
-  oracleId: string,
-): Promise<boolean> {
-  const card = await getCardByOracleId(oracleId);
-  return card != null && isPauperLegal(card);
-}
-
-export async function getMetagamePrinting(
-  oracleId: string,
-): Promise<Printing | null> {
-  const card = await getCardByOracleId(oracleId);
-  if (!card?.metagame_printing_id) return null;
-  const db = await getDb();
-  return db
-    .collection<Printing>(COLLECTIONS.printings)
-    .findOne({ scryfall_id: card.metagame_printing_id }, WITHOUT_ID);
-}
-
-export async function getPrintingById(
-  scryfallId: string,
-): Promise<Printing | null> {
-  const db = await getDb();
-  return db
-    .collection<Printing>(COLLECTIONS.printings)
-    .findOne({ scryfall_id: scryfallId }, WITHOUT_ID);
-}
-
 export async function getPrintingsByIds(
   scryfallIds: string[],
 ): Promise<Printing[]> {
@@ -267,22 +240,4 @@ export async function getCardArtByName(name: string): Promise<string | null> {
   );
 }
 
-export async function getCardCount(): Promise<number | null> {
-  try {
-    const db = await getDb();
-    return await db.collection(COLLECTIONS.cards).estimatedDocumentCount();
-  } catch {
-    return null;
-  }
-}
 
-export async function getPauperCardCount(): Promise<number | null> {
-  try {
-    const db = await getDb();
-    return await db
-      .collection<Card>(COLLECTIONS.cards)
-      .countDocuments({ "legalities.pauper": "legal" });
-  } catch {
-    return null;
-  }
-}

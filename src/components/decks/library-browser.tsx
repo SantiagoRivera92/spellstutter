@@ -354,6 +354,14 @@ function errorMessage(code: string): string {
       return "The database is missing the latest migration. Apply supabase/migrations/20260929120000_deck_archetype.sql and try again.";
     case "archetype_unavailable":
       return "No stored lists for that archetype yet. Run the metagame sync. ";
+    case "not_found":
+      return "That deck could not be found.";
+    case "list_too_long":
+      return "That list is too long to import (100,000 characters max).";
+    case "card_catalog_unavailable":
+      return "The card catalog is unavailable right now. Try again shortly.";
+    case "empty_list":
+      return "No cards were recognised in that list.";
     default:
       return code;
   }

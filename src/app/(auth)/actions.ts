@@ -3,8 +3,17 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { isSupabaseConfigured } from "@/lib/env";
+import { rateLimit } from "@/lib/auth/rate-limit";
+import { safeNextPath } from "@/lib/auth/redirect";
+import { getSiteUrl, isSupabaseConfigured } from "@/lib/env";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+
+async function authRateLimit(prefix: string): Promise<boolean> {
+  const headerList = await headers();
+  const ip =
+    headerList.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  return rateLimit(`${prefix}:${ip}`);
+}
 
 export interface AuthState {
   error?: string;
@@ -25,15 +34,14 @@ const credentialsSchema = z.object({
 });
 
 function safeNext(value: FormDataEntryValue | null): string {
-  const next = typeof value === "string" ? value : "";
-  return next.startsWith("/") && !next.startsWith("//") ? next : "/decks";
+  return safeNextPath(typeof value === "string" ? value : null);
 }
 
 async function getOrigin(): Promise<string> {
   const headerList = await headers();
   const proto = headerList.get("x-forwarded-proto") ?? "http";
   const host = headerList.get("host") ?? "localhost:3000";
-  return `${proto}://${host}`;
+  return getSiteUrl(`${proto}://${host}`);
 }
 
 export async function signInAction(
@@ -42,6 +50,9 @@ export async function signInAction(
 ): Promise<AuthState> {
   if (!isSupabaseConfigured()) {
     return { error: "Authentication is not configured on this environment." };
+  }
+  if (!(await authRateLimit("signin"))) {
+    return { error: "Too many attempts. Please try again in a few minutes." };
   }
 
   const parsed = credentialsSchema.safeParse({
@@ -65,12 +76,96 @@ export async function signInAction(
   redirect(safeNext(formData.get("next")));
 }
 
+export async function forgotPasswordAction(
+  _prev: AuthState,
+  formData: FormData,
+): Promise<AuthState> {
+  if (!isSupabaseConfigured()) {
+    return { error: "Authentication is not configured on this environment." };
+  }
+  if (!(await authRateLimit("forgot"))) {
+    return { error: "Too many attempts. Please try again in a few minutes." };
+  }
+
+  const parsed = z
+    .object({ email: z.string().email("Enter a valid email address.") })
+    .safeParse({ email: formData.get("email") });
+  if (!parsed.success) {
+    return { fieldErrors: { email: parsed.error.issues[0]?.message ?? "Invalid email." } };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const origin = await getOrigin();
+  // Report success regardless, to avoid revealing which emails are registered.
+  await supabase.auth
+    .resetPasswordForEmail(parsed.data.email, {
+      redirectTo: `${origin}/auth/callback?next=${encodeURIComponent("/reset-password")}`,
+    })
+    .catch(() => undefined);
+
+  return {
+    message:
+      "If that email is registered, a password reset link is on its way.",
+  };
+}
+
+export async function updatePasswordAction(
+  _prev: AuthState,
+  formData: FormData,
+): Promise<AuthState> {
+  if (!isSupabaseConfigured()) {
+    return { error: "Authentication is not configured on this environment." };
+  }
+  if (!(await authRateLimit("update-password"))) {
+    return { error: "Too many attempts. Please try again in a few minutes." };
+  }
+
+  const parsed = z
+    .object({
+      password: z.string().min(8, "Use at least 8 characters."),
+      confirm: z.string().min(8, "Use at least 8 characters."),
+    })
+    .refine((value) => value.password === value.confirm, {
+      path: ["confirm"],
+      message: "Passwords do not match.",
+    })
+    .safeParse({
+      password: formData.get("password"),
+      confirm: formData.get("confirm"),
+    });
+  if (!parsed.success) {
+    const fieldErrors: Record<string, string> = {};
+    for (const issue of parsed.error.issues) {
+      fieldErrors[String(issue.path[0])] = issue.message;
+    }
+    return { fieldErrors };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return { error: "Your reset link has expired. Request a new one." };
+  }
+
+  const { error } = await supabase.auth.updateUser({
+    password: parsed.data.password,
+  });
+  if (error) return { error: error.message };
+
+  redirect("/decks?password=updated");
+}
+
 export async function signUpAction(
   _prev: AuthState,
   formData: FormData,
 ): Promise<AuthState> {
   if (!isSupabaseConfigured()) {
     return { error: "Authentication is not configured on this environment." };
+  }
+  if (!(await authRateLimit("signup"))) {
+    return { error: "Too many attempts. Please try again in a few minutes." };
   }
 
   const parsed = credentialsSchema

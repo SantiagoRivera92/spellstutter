@@ -252,6 +252,7 @@ function CommentForm({
 
 function commentError(code: string): string {
   if (code === "unauthenticated") return "Sign in to comment.";
+  if (code === "not_found") return "This deck is not available for comments.";
   if (/row-level security|violates .*constraint/i.test(code)) {
     return "You can only comment on public or unlisted decks.";
   }

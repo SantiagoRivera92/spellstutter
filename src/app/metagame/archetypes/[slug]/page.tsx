@@ -12,7 +12,7 @@ import { isMongoConfigured } from "@/lib/env";
 import { archetypeName } from "@/lib/metagame/archetypes";
 import {
   getArchetypeBreakdown,
-  getMetagameSummary,
+  getArchetypeStat,
   listDecksByArchetype,
 } from "@/lib/metagame/queries";
 import type { ArchetypeCardStat } from "@/lib/metagame/types";
@@ -45,14 +45,12 @@ export default async function ArchetypePage({
     getSession(),
     listDecksByArchetype(slug).catch(() => []),
   ]);
-  const summary = session
-    ? await getMetagameSummary(30).catch(() => null)
-    : null;
-  const breakdown = session
-    ? await getArchetypeBreakdown(slug, 30).catch(() => null)
-    : null;
-
-  const stat = summary?.archetypes.find((entry) => entry.slug === slug) ?? null;
+  const [stat, breakdown] = session
+    ? await Promise.all([
+        getArchetypeStat(slug, 30).catch(() => null),
+        getArchetypeBreakdown(slug, 30).catch(() => null),
+      ])
+    : [null, null];
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">

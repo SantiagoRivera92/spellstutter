@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { searchCards } from "@/lib/cards/queries";
 import { isMongoConfigured } from "@/lib/env";
+import { rateLimitResponse } from "@/lib/http/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,9 @@ const querySchema = z.object({
 });
 
 export async function GET(request: NextRequest) {
+  const limited = rateLimitResponse(request, "api:cards:search", 60);
+  if (limited) return limited;
+
   if (!isMongoConfigured()) {
     return Response.json(
       {

@@ -20,6 +20,7 @@ export function ManaCost({
 
   return (
     <span
+      role="img"
       className={cn("inline-flex items-center gap-0.5 align-middle", className)}
       aria-label={`Mana cost ${costs.join(" // ")}`}
     >

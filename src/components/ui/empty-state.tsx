@@ -7,12 +7,14 @@ export function EmptyState({
   action,
   icon,
   className,
+  as: Heading = "h2",
 }: {
   title: string;
   description?: string;
   action?: React.ReactNode;
   icon?: React.ReactNode;
   className?: string;
+  as?: "h2" | "h3";
 }) {
   return (
     <div
@@ -23,7 +25,7 @@ export function EmptyState({
     >
       {icon ? <div className="text-muted-foreground">{icon}</div> : null}
       <div className="space-y-1">
-        <h3 className="font-display text-base font-medium">{title}</h3>
+        <Heading className="font-display text-base font-medium">{title}</Heading>
         {description ? (
           <p className="max-w-prose text-sm text-muted-foreground">{description}</p>
         ) : null}

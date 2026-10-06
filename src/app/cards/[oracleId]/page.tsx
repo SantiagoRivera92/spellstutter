@@ -20,7 +20,29 @@ export async function generateMetadata({
   const { oracleId } = await params;
   if (!isMongoConfigured()) return { title: "Card" };
   const card = await getCardByOracleId(oracleId).catch(() => null);
-  return { title: card?.name ?? "Card" };
+  const title = card?.name ?? "Card";
+  const description = card?.type_line
+    ? `${card.type_line} — Pauper card on Spellstutter.`
+    : "A Pauper card on Spellstutter.";
+  const image =
+    card?.image_uris?.normal ??
+    card?.card_faces?.[0]?.image_uris?.normal ??
+    undefined;
+  return {
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      images: image ? [image] : undefined,
+    },
+    twitter: {
+      card: image ? "summary_large_image" : "summary",
+      title,
+      description,
+      images: image ? [image] : undefined,
+    },
+  };
 }
 
 export default async function CardPage({
@@ -88,7 +110,6 @@ export default async function CardPage({
                   : card.mana_cost
               }
             />
-            <Badge tone="outline">{card.rarity}</Badge>
             {pauper ? (
               <Badge tone="primary">Pauper legal</Badge>
             ) : (

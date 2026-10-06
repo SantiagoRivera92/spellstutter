@@ -4,7 +4,6 @@ import * as React from "react";
 import Image from "next/image";
 import type { CardImages, Printing } from "@/lib/cards/types";
 import { cn, formatDate } from "@/lib/utils";
-import { rarityClass } from "./rarity";
 
 function printingImage(printing: Printing): CardImages {
   return printing.image_uris.normal
@@ -57,8 +56,7 @@ export function PrintingGallery({
       <div className="rounded-lg border border-border bg-card px-4 py-3 text-sm">
         <p className="font-medium">{selected.set_name}</p>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          {selected.set.toUpperCase()} #{selected.collector_number} ·{" "}
-          <span className={rarityClass(selected.rarity)}>{selected.rarity}</span>
+          {selected.set.toUpperCase()} #{selected.collector_number}
           {selected.released_at ? ` · ${formatDate(selected.released_at)}` : ""}
         </p>
       </div>
@@ -71,9 +69,11 @@ export function PrintingGallery({
               ({printings.length})
             </span>
           </h2>
-          <span className="text-xs text-muted-foreground">
-            Pick the version you want
-          </span>
+          {printings.length > 1 ? (
+            <span className="text-xs text-muted-foreground">
+              Pick the version you want
+            </span>
+          ) : null}
         </div>
         <ul className="grid max-h-64 grid-cols-4 gap-2 overflow-y-auto pr-1 sm:grid-cols-6 lg:grid-cols-4">
           {printings.map((printing, printingIndex) => {
@@ -85,6 +85,7 @@ export function PrintingGallery({
                   type="button"
                   onClick={() => setIndex(printingIndex)}
                   aria-pressed={active}
+                  aria-label={`${name}, ${printing.set_name} #${printing.collector_number}`}
                   title={`${printing.set_name} #${printing.collector_number}`}
                   className={cn(
                     "block w-full overflow-hidden rounded-md border transition-colors duration-150",

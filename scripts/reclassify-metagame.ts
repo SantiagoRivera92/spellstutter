@@ -47,6 +47,8 @@ const NON_DECK_LAYOUTS = [
 
 interface CardIdentity {
   oracleId: string;
+  /** Canonical normalized name, so alias lookups resolve identity correctly. */
+  nameNormalized: string;
   printingId: string | null;
   colors: CardColor[];
   manaCost: string | null;
@@ -116,6 +118,7 @@ async function loadCatalog(db: Db): Promise<Catalog> {
   for await (const card of cursor) {
     const info: CardIdentity = {
       oracleId: card.oracle_id,
+      nameNormalized: normalizeName(card.name),
       printingId:
         card.metagame_printing_id ?? card.default_printing_id ?? null,
       colors: (card.colors ?? []) as CardColor[],
@@ -157,8 +160,12 @@ function identityOf(
 ): CardColor[] {
   const set = new Set<CardColor>();
   for (const entry of entries) {
-    if (IDENTITY_EXEMPT_CARDS.has(normalizeName(entry.name))) continue;
     const info = lookupIdentity(entry, catalog);
+    if (
+      IDENTITY_EXEMPT_CARDS.has(info?.nameNormalized ?? normalizeName(entry.name))
+    ) {
+      continue;
+    }
     for (const color of identityColors(info?.manaCost, info?.colors ?? [])) {
       set.add(color);
     }
@@ -177,13 +184,16 @@ function resolveBoard(
 ): MetagameCardEntry[] {
   return entries.map((entry) => {
     const info = lookupIdentity(entry, catalog);
+    const exempt = IDENTITY_EXEMPT_CARDS.has(
+      info?.nameNormalized ?? normalizeName(entry.name),
+    );
     return {
       ...entry,
       oracle_id: info?.oracleId ?? entry.oracle_id,
       printing_id: info?.printingId ?? entry.printing_id,
       type_line: info?.typeLine ?? entry.type_line ?? null,
       image: info?.image ?? entry.image ?? null,
-      colors: IDENTITY_EXEMPT_CARDS.has(normalizeName(entry.name))
+      colors: exempt
         ? []
         : info
           ? identityColors(info.manaCost, info.colors)

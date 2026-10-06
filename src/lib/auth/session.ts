@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { isSupabaseConfigured } from "@/lib/env";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { Profile } from "@/lib/supabase/types";
@@ -9,7 +10,11 @@ export interface Session {
   profile: Profile | null;
 }
 
-export async function getSession(): Promise<Session | null> {
+/**
+ * Cached per request so the root layout, the page, and `generateMetadata` share
+ * one `auth.getUser()` + `profiles.select` round-trip instead of repeating it.
+ */
+export const getSession = cache(async (): Promise<Session | null> => {
   if (!isSupabaseConfigured()) return null;
 
   try {
@@ -30,12 +35,6 @@ export async function getSession(): Promise<Session | null> {
     console.error("[auth] failed to resolve session", error);
     return null;
   }
-}
+});
 
-export async function requireSession(): Promise<Session> {
-  const session = await getSession();
-  if (!session) {
-    throw new Error("UNAUTHENTICATED");
-  }
-  return session;
-}
+

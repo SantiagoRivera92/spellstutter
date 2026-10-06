@@ -8,6 +8,8 @@ import {
   ArrowLeft,
   ArrowLeftRight,
   Layers,
+  LayoutGrid,
+  List,
   Minus,
   Plus,
   Trash2,
@@ -17,6 +19,7 @@ import type { DeckCardView, DeckView } from "@/lib/decks/types";
 import type { DeckBoard, DeckCard } from "@/lib/supabase/types";
 import {
   addDeckCard,
+  importDecklist,
   removeDeckCard,
   updateDeckCard,
   type ActionResult,
@@ -27,6 +30,7 @@ import { Button } from "@/components/ui/button";
 import { ManaCost } from "@/components/cards/mana-cost";
 import { CardSearch } from "@/components/cards/card-search";
 import { DeckStatsPanel } from "./deck-stats";
+import { DeckVisualBoard } from "./deck-visual-board";
 import { PrintingPickerDialog } from "./printing-picker-dialog";
 
 interface DeckEditorProps {
@@ -36,11 +40,22 @@ interface DeckEditorProps {
 
 type Board = Extract<DeckBoard, "main" | "side">;
 
+/** Minimal shape the preview panel needs, from a search result or deck card. */
+interface PreviewCard {
+  name: string;
+  image_normal: string | null;
+  mana_costs: string[];
+  type_line: string;
+  oracle_text: string;
+}
+
 export function DeckEditor({ view, username }: DeckEditorProps) {
   const router = useRouter();
   const [cards, setCards] = React.useState<DeckCardView[]>(view.cards);
   const [syncedFrom, setSyncedFrom] = React.useState<DeckCardView[]>(view.cards);
   const [selected, setSelected] = React.useState<CardSearchResult | null>(null);
+  const [hovered, setHovered] = React.useState<DeckCardView | null>(null);
+  const [mode, setMode] = React.useState<"list" | "visual">("list");
   const [error, setError] = React.useState<string | null>(null);
   const [notice, setNotice] = React.useState<string | null>(null);
   const [dropBoard, setDropBoard] = React.useState<Board | null>(null);
@@ -58,6 +73,18 @@ export function DeckEditor({ view, username }: DeckEditorProps) {
   const stats = React.useMemo(() => computeDeckStats(cards), [cards]);
   const main = cards.filter((card) => card.board === "main");
   const side = cards.filter((card) => card.board === "side");
+
+  // A hovered deck card takes over the preview; otherwise show the search
+  // result the user last selected.
+  const preview: PreviewCard | null = hovered
+    ? {
+        name: hovered.card_name,
+        image_normal: hovered.image_normal,
+        mana_costs: hovered.mana_costs,
+        type_line: hovered.type_line,
+        oracle_text: hovered.oracle_text,
+      }
+    : selected;
 
   function report(result: ActionResult) {
     if (result.ok) {
@@ -203,7 +230,6 @@ export function DeckEditor({ view, username }: DeckEditorProps) {
     const text = event.dataTransfer.getData("text/plain");
     if (text) {
       startTransition(async () => {
-        const { importDecklist } = await import("@/lib/decks/actions");
         report(
           await importDecklist({
             deckId: view.deck.id,
@@ -234,9 +260,37 @@ export function DeckEditor({ view, username }: DeckEditorProps) {
             Brewing as @{username}
           </p>
         </div>
-        <p className="ml-auto text-sm numeric text-muted-foreground">
-          {stats.main_count}/60 main · {stats.side_count} side
-        </p>
+        <div className="ml-auto flex items-center gap-3">
+          <p className="text-sm numeric text-muted-foreground">
+            {stats.main_count}/60 main · {stats.side_count} side
+          </p>
+          <div
+            role="group"
+            aria-label="Board display mode"
+            className="flex items-center gap-0.5 rounded-md border border-border p-0.5"
+          >
+            <Button
+              variant={mode === "list" ? "secondary" : "ghost"}
+              size="icon"
+              className="size-7"
+              aria-pressed={mode === "list"}
+              aria-label="List view"
+              onClick={() => setMode("list")}
+            >
+              <List className="size-4" aria-hidden />
+            </Button>
+            <Button
+              variant={mode === "visual" ? "secondary" : "ghost"}
+              size="icon"
+              className="size-7"
+              aria-pressed={mode === "visual"}
+              aria-label="Visual view"
+              onClick={() => setMode("visual")}
+            >
+              <LayoutGrid className="size-4" aria-hidden />
+            </Button>
+          </div>
+        </div>
       </div>
 
       {error ? (
@@ -260,6 +314,7 @@ export function DeckEditor({ view, username }: DeckEditorProps) {
         <div className="lg:sticky lg:top-20 lg:h-[calc(100vh-6rem)]">
           <CardSearch
             draggable
+            pauperOnly
             onAddCard={(card) => handleAdd(card, "main")}
             onSelectCard={setSelected}
             emptyHint="Drag a result onto a board, or press + to add it to the main deck."
@@ -268,36 +323,69 @@ export function DeckEditor({ view, username }: DeckEditorProps) {
         </div>
 
         <div className="min-w-0 space-y-5">
-          <Board
-            title="Main deck"
-            count={stats.main_count}
-            board="main"
-            cards={main}
-            active={dropBoard === "main"}
-            onDrop={handleDrop}
-            onDragOver={setDropBoard}
-            onQuantity={handleQuantity}
-            onRemove={handleRemove}
-            onMove={handleMove}
-            onPrinting={setPrintingFor}
-          />
-          <Board
-            title="Sideboard"
-            count={stats.side_count}
-            board="side"
-            cards={side}
-            active={dropBoard === "side"}
-            onDrop={handleDrop}
-            onDragOver={setDropBoard}
-            onQuantity={handleQuantity}
-            onRemove={handleRemove}
-            onMove={handleMove}
-            onPrinting={setPrintingFor}
-          />
+          {mode === "visual" ? (
+            <>
+              <DeckVisualBoard
+                title="Main deck"
+                count={stats.main_count}
+                board="main"
+                cards={main}
+                active={dropBoard === "main"}
+                onDrop={handleDrop}
+                onDragOver={setDropBoard}
+                onHover={setHovered}
+                onQuantity={handleQuantity}
+                onRemove={handleRemove}
+              />
+              <DeckVisualBoard
+                title="Sideboard"
+                count={stats.side_count}
+                board="side"
+                cards={side}
+                active={dropBoard === "side"}
+                onDrop={handleDrop}
+                onDragOver={setDropBoard}
+                onHover={setHovered}
+                onQuantity={handleQuantity}
+                onRemove={handleRemove}
+              />
+            </>
+          ) : (
+            <>
+              <Board
+                title="Main deck"
+                count={stats.main_count}
+                board="main"
+                cards={main}
+                active={dropBoard === "main"}
+                onDrop={handleDrop}
+                onDragOver={setDropBoard}
+                onHover={setHovered}
+                onQuantity={handleQuantity}
+                onRemove={handleRemove}
+                onMove={handleMove}
+                onPrinting={setPrintingFor}
+              />
+              <Board
+                title="Sideboard"
+                count={stats.side_count}
+                board="side"
+                cards={side}
+                active={dropBoard === "side"}
+                onDrop={handleDrop}
+                onDragOver={setDropBoard}
+                onHover={setHovered}
+                onQuantity={handleQuantity}
+                onRemove={handleRemove}
+                onMove={handleMove}
+                onPrinting={setPrintingFor}
+              />
+            </>
+          )}
         </div>
 
         <aside className="space-y-5 lg:col-span-2 xl:col-span-1 xl:sticky xl:top-20 xl:self-start">
-          <CardPreview card={selected} />
+          <CardPreview card={preview} />
           <div className="rounded-lg border border-border bg-card p-4">
             <h2 className="mb-3 font-display text-sm font-medium">Live stats</h2>
             <DeckStatsPanel stats={stats} />
@@ -327,6 +415,7 @@ function Board({
   active,
   onDrop,
   onDragOver,
+  onHover,
   onQuantity,
   onRemove,
   onMove,
@@ -339,6 +428,7 @@ function Board({
   active: boolean;
   onDrop: (event: React.DragEvent, board: Board) => void;
   onDragOver: (board: Board | null) => void;
+  onHover: (card: DeckCardView | null) => void;
   onQuantity: (card: DeckCardView, quantity: number) => void;
   onRemove: (card: DeckCardView) => void;
   onMove: (card: DeckCardView) => void;
@@ -355,6 +445,7 @@ function Board({
       }}
       onDragLeave={() => onDragOver(null)}
       onDrop={(event) => onDrop(event, board)}
+      onMouseLeave={() => onHover(null)}
       className={cn(
         "rounded-lg border bg-card transition-colors duration-150",
         active ? "border-primary bg-primary/5" : "border-border",
@@ -391,6 +482,7 @@ function Board({
                   <EditorCardRow
                     key={card.id}
                     card={card}
+                    onHover={onHover}
                     onQuantity={onQuantity}
                     onRemove={onRemove}
                     onMove={onMove}
@@ -408,19 +500,24 @@ function Board({
 
 function EditorCardRow({
   card,
+  onHover,
   onQuantity,
   onRemove,
   onMove,
   onPrinting,
 }: {
   card: DeckCardView;
+  onHover: (card: DeckCardView) => void;
   onQuantity: (card: DeckCardView, quantity: number) => void;
   onRemove: (card: DeckCardView) => void;
   onMove: (card: DeckCardView) => void;
   onPrinting: (card: DeckCardView) => void;
 }) {
   return (
-    <li className="group flex items-center gap-2 px-2.5 py-1.5 hover:bg-muted/40">
+    <li
+      className="group flex items-center gap-2 px-2.5 py-1.5 hover:bg-muted/40"
+      onMouseEnter={() => onHover(card)}
+    >
       <div className="flex items-center gap-1">
         <Button
           variant="ghost"
@@ -480,11 +577,11 @@ function EditorCardRow({
   );
 }
 
-function CardPreview({ card }: { card: CardSearchResult | null }) {
+function CardPreview({ card }: { card: PreviewCard | null }) {
   if (!card) {
     return (
       <div className="rounded-lg border border-dashed border-border p-5 text-sm text-muted-foreground">
-        Select a search result to preview it here.
+        Hover a card or select a search result to preview it here.
       </div>
     );
   }

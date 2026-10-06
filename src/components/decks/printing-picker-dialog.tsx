@@ -6,7 +6,6 @@ import type { CardImages, Printing } from "@/lib/cards/types";
 import { cn, formatDate } from "@/lib/utils";
 import { Dialog } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
-import { rarityClass } from "@/components/cards/rarity";
 
 function printingImage(printing: Printing): CardImages {
   return printing.image_uris.normal
@@ -103,11 +102,8 @@ export function PrintingPickerDialog({
                       {printing.set.toUpperCase()} #{printing.collector_number}
                     </span>
                     <span className="block truncate text-[11px] text-muted-foreground">
-                      <span className={rarityClass(printing.rarity)}>
-                        {printing.rarity}
-                      </span>
                       {printing.released_at
-                        ? ` · ${formatDate(printing.released_at)}`
+                        ? formatDate(printing.released_at)
                         : ""}
                     </span>
                   </span>

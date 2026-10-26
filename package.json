@@ -11,7 +11,8 @@
     "test": "node --import tsx --test \"src/**/*.test.ts\"",
     "sync:cards": "tsx scripts/sync-scryfall.ts",
     "sync:metagame": "tsx scripts/scrape-metagame.ts",
-    "sync:reclassify": "tsx scripts/reclassify-metagame.ts"
+    "sync:reclassify": "tsx scripts/reclassify-metagame.ts",
+    "sync:endstep": "tsx scripts/sync-endstep.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

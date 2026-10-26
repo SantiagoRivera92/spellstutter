@@ -37,7 +37,7 @@ test("spy combo requires Balustrade Spy", () => {
   assert.notEqual(withoutSpy.slug, "spy-combo");
 });
 
-test("respects colour gates (delver is mono-blue only)", () => {
+test("respects color gates (delver is mono-blue only)", () => {
   const monoblue = classifyDeck(
     ["Delver of Secrets", "Counterspell", "Brainstorm", "Ponder"],
     ["U"],

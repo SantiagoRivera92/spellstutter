@@ -15,6 +15,7 @@ import {
   getArchetypeBreakdown,
   getMetagameDeck,
 } from "@/lib/metagame/queries";
+import { getEndstepArchetype } from "@/lib/metagame/endstep";
 import type { MetagameDeck } from "@/lib/metagame/types";
 import { getSession, type Session } from "@/lib/auth/session";
 import { isMongoConfigured } from "@/lib/env";
@@ -39,6 +40,9 @@ const boardSchema = z.enum(["main", "side", "commander", "maybe"]);
 const visibilitySchema = z.enum(["private", "unlisted", "public"]);
 const nameSchema = z.string().trim().min(1).max(120);
 const folderNameSchema = z.string().trim().min(1).max(80);
+
+/** Marks an archetype slug that refers to an endstep.cc archetype. */
+const ENDSTEP_PREFIX = "endstep:";
 
 type ActionContext =
   | { ok: false; error: string }
@@ -167,9 +171,12 @@ export async function createDeck(input: {
 }
 
 /**
- * Create a deck seeded with an archetype's core: every card that appears in
- * 100% of the stored lists for that archetype, at the lowest copy count any one
- * list used (so a list running 3 Brainstorm seeds 3, not 4).
+ * Create a deck seeded from an archetype.
+ *
+ * MTGO archetypes seed every card that appears in 100% of the stored lists, at
+ * the lowest copy count any one list used (so a list running 3 Brainstorm seeds
+ * 3, not 4). endstep archetypes (slugs prefixed `endstep:`) seed their canonical
+ * sample mainboard directly.
  */
 export async function createDeckFromArchetype(input: {
   name: string;
@@ -184,11 +191,71 @@ export async function createDeckFromArchetype(input: {
     return { ok: false, error: "card_catalog_unavailable" };
   }
 
-  const breakdown = await getArchetypeBreakdown(
-    input.archetypeSlug,
-    120,
-  ).catch(() => null);
-  if (!breakdown) return { ok: false, error: "archetype_unavailable" };
+  const seed: {
+    name: string;
+    quantity: number;
+    oracle_id: string;
+    printing_id: string | null;
+  }[] = [];
+
+  if (input.archetypeSlug.startsWith(ENDSTEP_PREFIX)) {
+    const archetype = await getEndstepArchetype(
+      input.archetypeSlug.slice(ENDSTEP_PREFIX.length),
+    ).catch(() => null);
+    if (!archetype || !archetype.sample_list.main.length) {
+      return { ok: false, error: "archetype_unavailable" };
+    }
+    const unresolved = archetype.sample_list.main.filter((entry) => !entry.oracle_id);
+    const cards = unresolved.length
+      ? await getCardsByNames(
+          unresolved.map((entry) => normalizeName(entry.name)),
+        ).catch(() => [])
+      : [];
+    const byName = new Map(cards.map((card) => [card.name_normalized, card]));
+    for (const entry of archetype.sample_list.main) {
+      const card = byName.get(normalizeName(entry.name));
+      const oracleId = entry.oracle_id ?? card?.oracle_id;
+      if (!oracleId) continue;
+      seed.push({
+        name: card?.name ?? entry.name,
+        quantity: Math.min(999, Math.max(1, entry.count)),
+        oracle_id: oracleId,
+        printing_id:
+          entry.printing_id ??
+          card?.metagame_printing_id ??
+          card?.default_printing_id ??
+          null,
+      });
+    }
+  } else {
+    const breakdown = await getArchetypeBreakdown(
+      input.archetypeSlug,
+      120,
+    ).catch(() => null);
+    if (!breakdown) return { ok: false, error: "archetype_unavailable" };
+
+    const core = breakdown.main.filter(
+      (entry) => entry.oracle_id && entry.decks >= breakdown.decks && entry.min_qty > 0,
+    );
+    if (core.length) {
+      const oracleIds = core.map((entry) => entry.oracle_id!) as string[];
+      const cards = await getCardsByOracleIds(oracleIds).catch(() => []);
+      const printingByOracle = new Map(
+        cards.map((card) => [
+          card.oracle_id,
+          card.metagame_printing_id ?? card.default_printing_id ?? null,
+        ]),
+      );
+      for (const entry of core) {
+        seed.push({
+          name: entry.name,
+          quantity: Math.min(999, entry.min_qty),
+          oracle_id: entry.oracle_id!,
+          printing_id: printingByOracle.get(entry.oracle_id!) ?? null,
+        });
+      }
+    }
+  }
 
   const { data, error } = await ctx.supabase
     .from("decks")
@@ -208,27 +275,14 @@ export async function createDeckFromArchetype(input: {
   }
   const deckId = (data as { id: string }).id;
 
-  const core = breakdown.main.filter(
-    (entry) => entry.oracle_id && entry.decks >= breakdown.decks && entry.min_qty > 0,
-  );
-
-  if (core.length) {
-    const oracleIds = core.map((entry) => entry.oracle_id!) as string[];
-    const cards = await getCardsByOracleIds(oracleIds).catch(() => []);
-    const printingByOracle = new Map(
-      cards.map((card) => [
-        card.oracle_id,
-        card.metagame_printing_id ?? card.default_printing_id ?? null,
-      ]),
-    );
-
+  if (seed.length) {
     await ctx.supabase.from("deck_cards").insert(
-      core.map((entry) => ({
+      seed.map((entry) => ({
         deck_id: deckId,
-        oracle_id: entry.oracle_id!,
-        printing_id: printingByOracle.get(entry.oracle_id!) ?? null,
+        oracle_id: entry.oracle_id,
+        printing_id: entry.printing_id,
         card_name: entry.name,
-        quantity: Math.min(999, entry.min_qty),
+        quantity: entry.quantity,
         board: "main" as const,
       })),
     );

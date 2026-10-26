@@ -14,11 +14,14 @@ export function DeckHeader({
   ownerName,
   canEdit,
   folders,
+  archetypeLabel,
 }: {
   view: DeckView;
   ownerName?: string;
   canEdit: boolean;
   folders: Folder[];
+  /** Display name for a non-MTGO archetype (e.g. an endstep slug), unlinked. */
+  archetypeLabel?: string;
 }) {
   const { deck, stats, cards } = view;
   const cover = deck.cover_art_url;
@@ -73,11 +76,15 @@ export function DeckHeader({
               <div className="flex flex-wrap items-center gap-2">
                 {colors.length ? <ColorPips colors={colors} size={18} /> : null}
                 {deck.archetype_slug ? (
-                  <Link href={`/metagame/archetypes/${deck.archetype_slug}`}>
-                    <Badge tone="warning">
-                      {archetypeName(deck.archetype_slug)}
-                    </Badge>
-                  </Link>
+                  archetypeLabel ? (
+                    <Badge tone="warning">{archetypeLabel}</Badge>
+                  ) : (
+                    <Link href={`/metagame/archetypes/${deck.archetype_slug}`}>
+                      <Badge tone="warning">
+                        {archetypeName(deck.archetype_slug)}
+                      </Badge>
+                    </Link>
+                  )
                 ) : null}
                 {deck.visibility !== "private" ? (
                   <Badge tone="outline" className="border-ink-black-600 text-ink-black-100">

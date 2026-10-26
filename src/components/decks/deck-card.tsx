@@ -25,7 +25,7 @@ export interface DeckCardData {
 }
 
 /**
- * Art-first deck card: cover art, colour identity and count read first, with a
+ * Art-first deck card: cover art, color identity and count read first, with a
  * footer for the owner (community decks) or a status chip plus actions (your
  * library).
  */

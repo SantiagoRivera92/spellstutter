@@ -91,7 +91,7 @@ export default async function PublicDecksPage({
       <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
         <div
           role="group"
-          aria-label="Filter by colour"
+          aria-label="Filter by color"
           className="flex items-center gap-1"
         >
           <Link
@@ -169,7 +169,7 @@ export default async function PublicDecksPage({
             title="No public decks match"
             description={
               color
-                ? "No public decks in that colour. Try another colour or clear the filter."
+                ? "No public decks in that color. Try another color or clear the filter."
                 : "When players mark a deck public, it shows up here."
             }
             action={

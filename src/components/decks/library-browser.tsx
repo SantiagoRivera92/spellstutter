@@ -25,7 +25,7 @@ import {
   updateDeck,
   type ActionResult,
 } from "@/lib/decks/actions";
-import type { ArchetypeOption } from "@/lib/metagame/types";
+import type { ArchetypeOption, EndstepArchetypeOption } from "@/lib/metagame/types";
 import { collectDescendantIds, flattenFolders } from "@/lib/decks/folders";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -52,11 +52,13 @@ export function LibraryBrowser({
   folders,
   decks,
   archetypes,
+  endstepArchetypes,
   openNewDeck = false,
 }: {
   folders: FolderNode[];
   decks: DeckSummary[];
   archetypes: ArchetypeOption[];
+  endstepArchetypes: EndstepArchetypeOption[];
   openNewDeck?: boolean;
 }) {
   const router = useRouter();
@@ -255,6 +257,7 @@ export function LibraryBrowser({
           }
           folders={flatFolders}
           archetypes={archetypes}
+          endstepArchetypes={endstepArchetypes}
           onClose={() => setDialog(null)}
           onSubmit={(name, folderId, archetypeSlug) =>
             run(
@@ -525,6 +528,7 @@ function NewDeckDialog({
   defaultFolderId,
   folders,
   archetypes,
+  endstepArchetypes,
   onClose,
   onSubmit,
 }: {
@@ -532,6 +536,7 @@ function NewDeckDialog({
   defaultFolderId: string | null;
   folders: { id: string; name: string; depth: number }[];
   archetypes: ArchetypeOption[];
+  endstepArchetypes: EndstepArchetypeOption[];
   onClose: () => void;
   onSubmit: (
     name: string,
@@ -543,8 +548,10 @@ function NewDeckDialog({
   const [folderId, setFolderId] = React.useState(defaultFolderId ?? "");
   const [mode, setMode] = React.useState<"brew" | "archetype">("brew");
   const [archetypeSlug, setArchetypeSlug] = React.useState(
-    archetypes[0]?.slug ?? "",
+    archetypes[0]?.slug ??
+      (endstepArchetypes[0] ? `endstep:${endstepArchetypes[0].slug}` : ""),
   );
+  const hasArchetypes = archetypes.length > 0 || endstepArchetypes.length > 0;
 
   return (
     <Dialog
@@ -604,7 +611,7 @@ function NewDeckDialog({
               className={cn(
                 "flex cursor-pointer flex-col gap-1 rounded-md border p-3 text-sm transition-colors duration-150",
                 mode === "archetype" ? "border-primary" : "border-border hover:border-primary/40",
-                !archetypes.length && "cursor-not-allowed opacity-50",
+                !hasArchetypes && "cursor-not-allowed opacity-50",
               )}
             >
               <span className="flex items-center gap-2 font-medium">
@@ -613,14 +620,14 @@ function NewDeckDialog({
                   name="new-deck-mode"
                   value="archetype"
                   checked={mode === "archetype"}
-                  disabled={!archetypes.length}
+                  disabled={!hasArchetypes}
                   onChange={() => setMode("archetype")}
                   className="accent-[var(--primary)]"
                 />
                 Seed an archetype
               </span>
               <span className="text-xs text-muted-foreground">
-                Adds the core cards every list runs.
+                Adds a proven core or a full sample list.
               </span>
             </label>
           </div>
@@ -630,18 +637,34 @@ function NewDeckDialog({
           <Field
             label="Archetype"
             htmlFor="new-deck-archetype"
-            description="Based on the last 120 days of MTGO results."
+            description="MTGO seeds the cards every list runs; endstep seeds a canonical sample list."
           >
             <Select
               id="new-deck-archetype"
               value={archetypeSlug}
               onChange={(event) => setArchetypeSlug(event.target.value)}
             >
-              {archetypes.map((archetype) => (
-                <option key={archetype.slug} value={archetype.slug}>
-                  {archetype.name} ({archetype.decks})
-                </option>
-              ))}
+              {archetypes.length ? (
+                <optgroup label="MTGO (last 120 days)">
+                  {archetypes.map((archetype) => (
+                    <option key={archetype.slug} value={archetype.slug}>
+                      {archetype.name} ({archetype.decks})
+                    </option>
+                  ))}
+                </optgroup>
+              ) : null}
+              {endstepArchetypes.length ? (
+                <optgroup label="Endstep (rated play)">
+                  {endstepArchetypes.map((archetype) => (
+                    <option
+                      key={archetype.slug}
+                      value={`endstep:${archetype.slug}`}
+                    >
+                      {archetype.name} ({archetype.players} players)
+                    </option>
+                  ))}
+                </optgroup>
+              ) : null}
             </Select>
           </Field>
         ) : null}

@@ -1,11 +1,11 @@
 import { normalizeName } from "@/lib/cards/normalize-name";
 import type { CardColor } from "@/lib/cards/types";
 
-export const CLASSIFICATION_VERSION = "pauper-heuristics-v4";
+export const CLASSIFICATION_VERSION = "pauper-heuristics-v5";
 
 /**
- * Cards that should not contribute to a deck's archetype colour identity even
- * though they have coloured pips. Sneaky Snacker is a free discard payoff that
+ * Cards that should not contribute to a deck's archetype color identity even
+ * though they have colored pips. Sneaky Snacker is a free discard payoff that
  * shows up in otherwise-mono-red Madness decks; without this, every Mono-Red
  * Madness list reads as U/B.
  */
@@ -30,11 +30,11 @@ export interface ArchetypeRule {
   /** At least one of these cards must be present. */
   requiresAny?: string[];
   min_matches: number;
-  /** Deck colour identity must include every one of these colours. */
+  /** Deck color identity must include every one of these colors. */
   requiresColors?: CardColor[];
-  /** Deck colour identity must include none of these colours. */
+  /** Deck color identity must include none of these colors. */
   excludesColors?: CardColor[];
-  /** Deck colour identity must be a subset of these colours (mono-colour). */
+  /** Deck color identity must be a subset of these colors (mono-color). */
   maxColors?: CardColor[];
 }
 
@@ -48,7 +48,7 @@ const AFFINITY_SIGNATURE = [
   "ichor wellspring",
   "sojourner's companion",
   "blood fountain",
-  // Glint-Hawk / Synthesizer package shared by Esper, Jeskai and four-colour
+  // Glint-Hawk / Synthesizer package shared by Esper, Jeskai and four-color
   "glint hawk",
   "kor skyfisher",
   "experimental synthesizer",
@@ -61,7 +61,7 @@ const AFFINITY_SIGNATURE = [
 ];
 
 export const ARCHETYPE_RULES: ArchetypeRule[] = [
-  // --- Affinity, split by colour identity -------------------------------
+  // --- Affinity, split by color identity -------------------------------
   {
     slug: "affinity-esper",
     name: "Esper Affinity",
@@ -109,7 +109,7 @@ export const ARCHETYPE_RULES: ArchetypeRule[] = [
     min_matches: 3,
   },
 
-  // --- Wildfire, split by colour identity --------------------------------
+  // --- Wildfire, split by color identity --------------------------------
   // Any artifact-shell deck that runs Cleansing Wildfire is a Wildfire deck,
   // not Affinity, regardless of how much the rest of the list looks like it.
   {
@@ -183,7 +183,7 @@ export const ARCHETYPE_RULES: ArchetypeRule[] = [
     maxColors: ["R"],
   },
 
-  // --- Blue tempo: Terror split by colour, then Faeries / Delver ----------
+  // --- Blue tempo: Terror split by color, then Faeries / Delver ----------
   {
     slug: "mono-blue-terror",
     name: "Mono-Blue Terror",
@@ -365,7 +365,7 @@ export const ARCHETYPE_RULES: ArchetypeRule[] = [
     maxColors: ["U"],
   },
 
-  // --- Madness, split by colour -----------------------------------------
+  // --- Madness, split by color -----------------------------------------
   {
     slug: "izzet-madness",
     name: "Izzet Madness",
@@ -728,7 +728,7 @@ export const ARCHETYPE_RULES: ArchetypeRule[] = [
     signature: [
       "skred",
       "writhing chrysalis",
-      "leyline weaver",
+      "spider manifestation",
       "unfathomable truths",
       "preordain",
       "brainstorm",
@@ -784,7 +784,7 @@ export const ARCHETYPE_RULES: ArchetypeRule[] = [
     excludesColors: ["W", "B", "G"],
   },
 
-  // --- Ephemerate, named by colour identity ------------------------------
+  // --- Ephemerate, named by color identity ------------------------------
   {
     slug: "ephemerate-jeskai",
     name: "Jeskai Ephemerate",

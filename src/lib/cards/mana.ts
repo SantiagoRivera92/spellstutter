@@ -53,10 +53,10 @@ export function parseManaCost(manaCost: string | null | undefined): ParsedManaSy
 }
 
 /**
- * Colours a card contributes to a deck's archetype identity. Hybrid (`{U/R}`)
+ * Colors a card contributes to a deck's archetype identity. Hybrid (`{U/R}`)
  * and Phyrexian (`{G/P}`) symbols are ignored, since they can be paid without
- * committing to that colour (e.g. Abandon Attachments in a Dimir deck). Falls
- * back to the card's printed colours when there is no mana cost to parse.
+ * committing to that color (e.g. Abandon Attachments in a Dimir deck). Falls
+ * back to the card's printed colors when there is no mana cost to parse.
  */
 export function identityColors(
   manaCost: string | null | undefined,

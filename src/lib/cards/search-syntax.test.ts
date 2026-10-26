@@ -13,7 +13,7 @@ test("parses exact-name syntax", () => {
   assert.equal(parseQuery("!Counterspell").exactName, "Counterspell");
 });
 
-test("parses type, colour, and mana-value filters", () => {
+test("parses type, color, and mana-value filters", () => {
   const parsed = parseQuery("t:creature c:ub cmc<=3");
   assert.deepEqual(parsed.types, ["creature"]);
   assert.deepEqual(parsed.colors, ["U", "B"]);
@@ -21,7 +21,7 @@ test("parses type, colour, and mana-value filters", () => {
   assert.equal(parsed.cmcMin, null);
 });
 
-test("colour aliases and identity filters", () => {
+test("color aliases and identity filters", () => {
   const parsed = parseQuery("c:white id:wu");
   assert.deepEqual(parsed.colors, ["W"]);
   assert.deepEqual(parsed.colorIdentity, ["W", "U"]);

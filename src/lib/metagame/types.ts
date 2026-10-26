@@ -19,7 +19,7 @@ export interface MetagameCardEntry {
   type_line?: string | null;
   /** Card image (normal size), for the hover preview. */
   image?: string | null;
-  /** Colours the card contributes to identity (hybrid/Phyrexian excluded). */
+  /** Colors the card contributes to identity (hybrid/Phyrexian excluded). */
   colors?: CardColor[];
 }
 
@@ -99,4 +99,98 @@ export interface MetagameSummary {
   decks: number;
   since: string | null;
   archetypes: ArchetypeStat[];
+}
+
+/** A card in an endstep archetype's canonical sample list. */
+export interface EndstepSampleCard {
+  name: string;
+  count: number;
+  /** Resolved from the card catalog at sync time (null if unmatched). */
+  oracle_id?: string | null;
+  printing_id?: string | null;
+}
+
+/** Per-card inclusion statistics for an endstep archetype. */
+export interface EndstepCardStat {
+  name: string;
+  average_copies: number;
+  play_rate: number;
+  count: number;
+  of: number;
+}
+
+/**
+ * An endstep.cc metagame archetype: its canonical sample decklist plus the
+ * aggregate statistics endstep reports for the archetype. Used as a
+ * deckbuilding source (seed lists, average composition) rather than for
+ * match results.
+ */
+export interface EndstepArchetype {
+  format_id: string;
+  slug: string;
+  endstep_id: string;
+  name: string;
+  machine_named: boolean;
+  colours: CardColor[];
+  key_cards: string[];
+  art: { card_name: string | null } | null;
+  share_rate: number | null;
+  registrations: number;
+  players: number;
+  match_win_rate: number | null;
+  sample_list: { main: EndstepSampleCard[]; side: EndstepSampleCard[] };
+  cards_main: EndstepCardStat[];
+  cards_side: EndstepCardStat[];
+  texture: { average_turns: number | null; mulligan_rate: number | null } | null;
+  window: { preset: string; from: string; to: string };
+  derivation_version: number | null;
+  source: "endstep";
+  fetched_at: string;
+}
+
+/**
+ * A single matchup record for an endstep archetype.
+ *
+ * endstep returns the opponent as a nested object; the sync flattens it to the
+ * `opponent_*` fields below so consumers do not depend on the raw API shape.
+ */
+export interface EndstepMatchup {
+  opponent_id: string;
+  opponent_slug: string;
+  opponent_name: string;
+  wins: number;
+  losses: number;
+  matches: number;
+  rate: number | null; // win rate (0-1); null when endstep gates the sample
+  low: number | null; // lower bound confidence interval
+  high: number | null; // upper bound confidence interval
+  deff: number | null; // degree of dominance
+}
+
+/** Matchup data stored per-archetype per-sync run. */
+export interface EndstepMatchupRecord {
+  format_id: string;
+  archetype_slug: string;
+  opponent_slug: string;
+  window: string;
+  population: string;
+  share_rate_at_sync: number | null;
+  fetched_at: string;
+  match: EndstepMatchup;
+}
+
+/** An endstep archetype with its matchup data. */
+export interface EndstepArchetypeWithMatchups extends EndstepArchetype {
+  matchups: EndstepMatchup[];
+}
+
+/** Lightweight endstep archetype for pickers and grids. */
+export interface EndstepArchetypeOption {
+  slug: string;
+  name: string;
+  colours: CardColor[];
+  key_cards: string[];
+  share_rate: number | null;
+  players: number;
+  art: { card_name: string | null } | null;
 }

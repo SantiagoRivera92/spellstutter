@@ -50,7 +50,7 @@ function buildTree(folders: Folder[], deckCounts: Map<string, number>): FolderNo
   return roots;
 }
 
-/** Batch-fetch the colour identity for a set of oracle ids from the catalog. */
+/** Batch-fetch the color identity for a set of oracle ids from the catalog. */
 async function buildIdentityMap(
   oracleIds: string[],
 ): Promise<Map<string, CardColor[]>> {

@@ -6,6 +6,7 @@ import { SetupNotice } from "@/components/setup-notice";
 import { getLibrary } from "@/lib/decks/queries";
 import { isMongoConfigured, isSupabaseConfigured } from "@/lib/env";
 import { listArchetypes } from "@/lib/metagame/queries";
+import { listEndstepArchetypes } from "@/lib/metagame/endstep";
 
 export const metadata: Metadata = { title: "My decks" };
 export const dynamic = "force-dynamic";
@@ -43,6 +44,9 @@ export default async function DecksPage({
   const archetypes = isMongoConfigured()
     ? await listArchetypes().catch(() => [])
     : [];
+  const endstepArchetypes = isMongoConfigured()
+    ? await listEndstepArchetypes().catch(() => [])
+    : [];
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
@@ -63,6 +67,7 @@ export default async function DecksPage({
           folders={library.folders}
           decks={library.decks}
           archetypes={archetypes}
+          endstepArchetypes={endstepArchetypes}
           openNewDeck={params.new === "1"}
         />
       </div>

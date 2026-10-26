@@ -2,7 +2,7 @@
  * Reclassify stored metagame decks against the current archetype rules.
  *
  * Classification is a pure function of a deck's mainboard card names and its
- * mainboard colour identity, both of which are already stored. This script
+ * mainboard color identity, both of which are already stored. This script
  * recomputes `archetype`, `color_identity`, and `classification_version` for
  * every deck without re-fetching anything from mtgo.com — which matters
  * because MTGO frequently serves empty shells for older decklist pages.
@@ -21,7 +21,7 @@ import {
   IDENTITY_EXEMPT_CARDS,
   classifyDeck,
 } from "../src/lib/metagame/archetypes";
-import { MTGO_CARD_ALIASES } from "../src/lib/metagame/card-aliases";
+import { MTGO_CARD_ALIASES, isMtgoCardAlias } from "../src/lib/metagame/card-aliases";
 import type {
   MetagameCardEntry,
   MetagameDeck,
@@ -47,6 +47,8 @@ const NON_DECK_LAYOUTS = [
 
 interface CardIdentity {
   oracleId: string;
+  /** Canonical name, so aliased MTGO reskins display under the paper name. */
+  name: string;
   /** Canonical normalized name, so alias lookups resolve identity correctly. */
   nameNormalized: string;
   printingId: string | null;
@@ -118,6 +120,7 @@ async function loadCatalog(db: Db): Promise<Catalog> {
   for await (const card of cursor) {
     const info: CardIdentity = {
       oracleId: card.oracle_id,
+      name: card.name,
       nameNormalized: normalizeName(card.name),
       printingId:
         card.metagame_printing_id ?? card.default_printing_id ?? null,
@@ -189,6 +192,9 @@ function resolveBoard(
     );
     return {
       ...entry,
+      // Reskinned MTGO names (Through the Omenpaths) display under the paper
+      // Spider-Man name; every other card keeps its own name.
+      name: isMtgoCardAlias(entry.name) && info ? info.name : entry.name,
       oracle_id: info?.oracleId ?? entry.oracle_id,
       printing_id: info?.printingId ?? entry.printing_id,
       type_line: info?.typeLine ?? entry.type_line ?? null,
@@ -203,7 +209,7 @@ function resolveBoard(
 }
 
 async function run(db: Db, dryRun: boolean) {
-  console.log("[reclassify] loading card colours…");
+  console.log("[reclassify] loading card colors…");
   const catalog = await loadCatalog(db);
 
   const decks = db.collection<MetagameDeck>("metagame_decks");

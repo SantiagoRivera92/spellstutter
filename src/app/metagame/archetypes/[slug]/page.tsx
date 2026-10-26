@@ -14,8 +14,11 @@ import {
   getArchetypeBreakdown,
   getArchetypeStat,
   listDecksByArchetype,
+  type ArchetypeRecord,
 } from "@/lib/metagame/queries";
 import type { ArchetypeCardStat } from "@/lib/metagame/types";
+import { getArchetypeMatchups, getEndstepArchetypeRecord } from "@/lib/metagame/queries";
+import { wilsonScoreInterval } from "@/lib/metagame/wilson";
 
 export const dynamic = "force-dynamic";
 
@@ -45,12 +48,43 @@ export default async function ArchetypePage({
     getSession(),
     listDecksByArchetype(slug).catch(() => []),
   ]);
-  const [stat, breakdown] = session
+  const [stat, breakdown, matchups, endstepRecord] = session
     ? await Promise.all([
         getArchetypeStat(slug, 30).catch(() => null),
         getArchetypeBreakdown(slug, 30).catch(() => null),
+        getArchetypeMatchups(slug, 30).catch(() => []),
+        getEndstepArchetypeRecord(slug, 30).catch(() => null),
       ])
-    : [null, null];
+    : [null, null, [], null];
+
+  const hasMatchups = matchups.length > 0;
+
+  // Prefer the endstep record (clean API, full matchup set); fall back to the
+  // MTGO-scraped wins/losses when this archetype has no endstep equivalent.
+  const record: ArchetypeRecord | null =
+    endstepRecord ??
+    (stat && stat.win_rate != null
+      ? {
+          wins: stat.wins,
+          losses: stat.losses,
+          matches: stat.wins + stat.losses,
+          win_rate: stat.win_rate,
+          source: "mtgo",
+        }
+      : null);
+
+  const recordValue = record ? `${record.wins}-${record.losses}` : null;
+  const recordSource = record
+    ? record.source === "endstep"
+      ? "endstep · 30d"
+      : "MTGO · 30d"
+    : undefined;
+  const winrateValue =
+    record?.win_rate != null ? `${(record.win_rate * 100).toFixed(1)}%` : "—";
+  const wilson = record ? wilsonScoreInterval(record.wins, record.losses) : null;
+  const wilsonValue = wilson
+    ? `${(wilson.low * 100).toFixed(1)}–${(wilson.high * 100).toFixed(1)}%`
+    : "—";
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
@@ -74,18 +108,19 @@ export default async function ArchetypePage({
       {session && stat ? (
         <dl className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Metric label="Meta share" value={`${(stat.meta_share * 100).toFixed(1)}%`} />
-          <Metric label="Decks (30d)" value={stat.decks} />
           <Metric
             label="Record"
-            value={
-              stat.win_rate != null
-                ? `${stat.wins}-${stat.losses}`
-                : "—"
-            }
+            value={recordValue ?? "—"}
+            sub={recordSource}
           />
           <Metric
-            label="Avg rank"
-            value={stat.average_rank != null ? stat.average_rank.toFixed(1) : "—"}
+            label="Winrate"
+            value={winrateValue}
+            sub={recordSource}
+          />
+          <Metric
+            label="95% confidence winrate"
+            value={wilsonValue}
           />
         </dl>
       ) : !session ? (
@@ -101,6 +136,17 @@ export default async function ArchetypePage({
             Create free account
           </Link>
         </div>
+      ) : null}
+
+      {hasMatchups ? (
+        <p className="mt-4 text-sm text-primary">
+          <Link
+            href={`/metagame/matchups/${slug}`}
+            className={buttonVariants({ variant: "link", size: "sm" })}
+          >
+            View matchups
+          </Link>
+        </p>
       ) : null}
 
       {breakdown ? (
@@ -175,11 +221,22 @@ export default async function ArchetypePage({
   );
 }
 
-function Metric({ label, value }: { label: string; value: string | number }) {
+function Metric({
+  label,
+  value,
+  sub,
+}: {
+  label: string;
+  value: string | number;
+  sub?: string;
+}) {
   return (
     <div className="rounded-lg border border-border bg-card px-4 py-3">
       <dt className="text-xs text-muted-foreground">{label}</dt>
       <dd className="font-display text-lg font-medium numeric">{value}</dd>
+      {sub ? (
+        <dd className="text-[11px] text-muted-foreground">{sub}</dd>
+      ) : null}
     </div>
   );
 }

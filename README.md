@@ -1,120 +1,137 @@
 # Spellstutter
 
-A Pauper-focused Magic: The Gathering deck builder and metagame tracker.
+**English** | [Español](README-ES.md)
 
-- **Card catalog** — every card ever printed and every printing, stored in
-  MongoDB and synced from the Scryfall bulk API by a GitHub Action. Deckbuilding
-  is Pauper-only, but the catalog and card pages cover all of Magic.
-- **Deckbuilding** — full Scryfall syntax search (against Scryfall itself), drag
-  cards in, pick any printing, and start from scratch or seed an archetype's core.
-- **Decks and folders** — user accounts, a nested folder tree, and cover art,
-  stored in Postgres via Supabase with row-level security.
-- **Metagame** — MTGO Pauper leagues and challenges scraped by a second GitHub
-  Action, split into color-aware archetypes with average deck composition and
-  per-card usage.
+**A Pauper-focused deck builder and metagame tracker for Magic: The Gathering.**
 
-## Stack
+[![Next.js](https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs&logoColor=white)](https://nextjs.org)
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
+[![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-47A248?logo=mongodb&logoColor=white)](https://www.mongodb.com)
+[![Supabase](https://img.shields.io/badge/Supabase-Postgres-3FCF8E?logo=supabase&logoColor=white)](https://supabase.com)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
+
+Spellstutter combines a full card catalog, a drag-and-drop deck editor, and
+daily-refreshed Pauper metagame data in one app. Build and organize decks,
+inspect every printing of every card, and see which archetypes and cards are
+actually winning.
+
+> Unofficial Fan Content permitted under the Wizards of the Coast Fan Content
+> Policy. Magic: The Gathering is a trademark of Wizards of the Coast LLC. Card
+> data from Scryfall.
+
+## Features
+
+- **Full card catalog** — every card and printing, synced from the Scryfall
+  bulk API. Search with full Scryfall syntax and browse legality for every
+  format, while deckbuilding stays Pauper-only.
+- **Deck editor** — drag cards in, choose any printing, import text decklists,
+  export as plain text or an MTGO `.dek` file, and seed a deck from an
+  archetype's core.
+- **Library and folders** — a nested folder tree, cover art, public decks, and
+  per-deck comments.
+- **Metagame tracker** — daily MTGO league and challenge results split into
+  color-aware archetypes, with meta share, average composition, matchup
+  records, and staple leaderboards.
+- **Second archetype source** — endstep.cc sample lists and per-card inclusion
+  stats for deckbuilding.
+- **Accounts and notifications** — Supabase Auth, profiles, comment/reply
+  notifications, and row-level security.
+
+## Tech stack
 
 | Layer | Choice |
 | --- | --- |
-| App | Next.js 16 (App Router, React 19, Turbopack) |
-| Styling | Tailwind CSS v4 with a semantic token layer |
-| Cards + metagame | MongoDB (Atlas in production, Docker locally) |
-| Users, decks, folders | Supabase Postgres + Auth + RLS |
-| Data sync | GitHub Actions (`tsx` scripts) |
-| Icons / drag-drop | lucide-react, native HTML5 drag-and-drop |
+| App | Next.js 16 App Router, React 19, Turbopack |
+| Language | TypeScript 5 |
+| Styling | Tailwind CSS v4 with semantic design tokens |
+| Card catalog + metagame | MongoDB (Atlas in production, Docker locally) |
+| Accounts, decks, folders | Supabase Postgres + Auth + RLS |
+| Data sync | Scheduled GitHub Actions running `tsx` scripts |
+| Icons / drag-and-drop | lucide-react, native HTML5 drag-and-drop |
 
 ## Architecture
 
 ```
-Scryfall bulk API ──sync:cards──▶ Mongo: cards, printings
-mtgo.com decklists ─sync:metagame─▶ Mongo: metagame_events, metagame_decks
-                                          │
-                    Next.js (App Router) ──┼─▶ /api/cards/*        (search, detail)
-                                          └─▶ server components   (metagame, decks)
-
-Supabase Postgres ── profiles, folders, decks, deck_cards (RLS)
+Scryfall bulk API ───sync:cards────▶ MongoDB: cards, printings
+mtgo.com decklists ──sync:metagame─▶ MongoDB: metagame_events, metagame_decks
+endstep.cc API ──────sync:endstep──▶ MongoDB: endstep_archetypes, endstep_matchups
+                                           │
+                      Next.js (App Router) ─┼─▶ /api/cards/*, /api/scryfall/*
+                                           └─▶ server components
+Supabase Postgres ── profiles, folders, decks, deck_cards, comments, notifications (RLS)
 ```
 
-Reads of the card catalog and metagame go through server-only Mongo helpers
+Card and metagame reads go through server-only Mongo helpers
 (`src/lib/cards/queries.ts`, `src/lib/metagame/queries.ts`). Deck writes go
-through server actions (`src/lib/decks/actions.ts`) that always re-check Pauper
+through server actions (`src/lib/decks/actions.ts`) that re-check Pauper
 legality against Mongo before inserting a card.
 
-## Local setup
+## Getting started
 
-Requirements: Node 22+, pnpm 11+, Docker (for MongoDB).
+**Prerequisites:** Node 22+, pnpm 11+, and Docker (or another MongoDB instance).
+Supabase is required for accounts, decks, and folders.
 
 ```bash
+git clone <repository-url> spellstutter
+cd spellstutter
 pnpm install
 cp .env.example .env.local
 ```
 
-### 1. MongoDB
+### 1. Start MongoDB
 
 ```bash
 docker compose up -d mongo
-# or, without the compose plugin:
+# without the compose plugin:
 # docker run -d --name spellstutter-mongo -p 27017:27017 mongo:8
 ```
 
-### 2. Load the card catalog
+### 2. Configure environment
 
-The sync streams the gzipped Scryfall JSONL bulk file and upserts one canonical
-document per oracle id (all cards) plus one document per printing. Each card
-keeps its full format legality map and a `metagame_printing_id` pointing at its
-earliest common printing (the default for MTGO decklists). About 118k printings
-and 38k cards — roughly 200 MB in Mongo.
+Fill in `.env.local`. At minimum, set `MONGODB_URI`; add the Supabase values for
+auth and deck storage.
 
-```bash
-pnpm sync:cards                 # incremental; skips if Scryfall data is unchanged
-pnpm sync:cards -- --force      # re-download and re-upsert
-pnpm sync:cards -- --pauper-only
-pnpm sync:cards -- --limit=2000 # quick local seed
-pnpm sync:cards -- --dry-run
-```
+### 3. Apply the Supabase schema
 
-Indexes are created automatically on the first run.
-
-### 3. Load the metagame
+Create a Supabase project, then run the migrations in order with the Supabase
+CLI or paste them into the SQL editor:
 
 ```bash
-pnpm sync:metagame                    # current UTC month
-pnpm sync:metagame -- --year=2026 --month=09
-pnpm sync:metagame -- --limit=5 --dry-run
+supabase db push
 ```
 
-The script reads the `window.MTGO.decklists.data` payload embedded in each
-decklist page (no fragile DOM scraping), normalizes league and challenge shapes,
-and classifies each list with `src/lib/metagame/archetypes.ts`.
+<details>
+<summary>Migration files and auth setup</summary>
 
-`mtgo.com` frequently serves an empty, JS-only shell for decklist pages, so a
-scrape can miss events. Because classification is a pure function of the stored
-mainboard, you can re-apply rule changes to everything already stored without
-re-fetching:
+- `20260928120000_init.sql` — `profiles`, `folders`, `decks`, `deck_cards`,
+  RLS policies, the folder cycle guard, and the signup trigger that provisions a
+  profile.
+- `20260929120000_deck_archetype.sql` — `decks.archetype_slug` for
+  archetype-seeded decks.
+- `20260930120000_comments_notifications.sql` — `deck_comments` and
+  `notifications`, RLS, and the comment notification trigger.
+- `20260930130000_comment_insert_policy.sql` — lets signed-in users comment on
+  decks they can read.
+
+In Supabase → Authentication → URL configuration, add
+`http://localhost:3000/auth/callback` and your production callback URL.
+</details>
+
+### 4. Load data
 
 ```bash
-pnpm sync:reclassify            # recompute archetype + colour for all decks
-pnpm sync:reclassify -- --dry-run
+# Card catalog (about 118k printings / 38k cards, ~200 MB in Mongo)
+pnpm sync:cards -- --limit=2000   # quick local seed; drop --limit for everything
+
+# Metagame (current UTC month)
+pnpm sync:metagame
+
+# endstep archetypes (optional, used for seeding)
+pnpm sync:endstep
 ```
 
-### 4. Supabase (accounts, decks, folders)
-
-1. Create a Supabase project.
-2. Apply the schema — either `supabase db push` (Supabase CLI) or paste each
-   file in `supabase/migrations/` into the SQL editor in order:
-   - `20260928120000_init.sql` — `profiles`, `folders`, `decks`, `deck_cards`,
-     their RLS policies, the folder cycle guard, and the signup trigger that
-     provisions a profile.
-   - `20260929120000_deck_archetype.sql` — `decks.archetype_slug` for
-     archetype-seeded decks.
-   - `20260930120000_comments_notifications.sql` — `deck_comments` and
-     `notifications` tables, RLS, and the comment notification trigger.
-   - `20260930130000_comment_insert_policy.sql` — the insert policy that lets
-     signed-in users comment on decks they can read.
-3. Put the project URL, anon key, and service-role key in `.env.local`.
-4. In Authentication → URL configuration, add `http://localhost:3000/auth/callback`
-   (and your production callback) as a redirect URL.
+Sync indexes are created automatically on the first run.
 
 ### 5. Run
 
@@ -122,153 +139,239 @@ pnpm sync:reclassify -- --dry-run
 pnpm dev
 ```
 
+Open <http://localhost:3000>. Without `MONGODB_URI` the card and metagame pages
+show a setup notice instead of failing.
+
+## Data pipeline
+
+| Command | Source | Writes | Schedule |
+| --- | --- | --- | --- |
+| `pnpm sync:cards` | Scryfall bulk API | `cards`, `printings` | Daily, 04:17 UTC |
+| `pnpm sync:metagame` | mtgo.com decklists | `metagame_events`, `metagame_decks` | Daily, 05:23 UTC |
+| `pnpm sync:endstep` | endstep.cc metagame API | `endstep_archetypes`, `endstep_matchups` | Daily, 06:37 UTC |
+| `pnpm sync:reclassify` | stored decks only | Recomputes archetype + color | Manual |
+
+`sync:cards` streams the gzipped Scryfall JSONL bulk file and upserts one
+canonical document per oracle id plus one per printing. `sync:metagame` reads the
+`window.MTGO.decklists.data` payload embedded in each decklist page (no DOM
+scraping) and classifies each list with `src/lib/metagame/archetypes.ts`.
+
+## GitHub Actions
+
+Three workflows run daily and can be triggered manually from the Actions tab:
+
+| Workflow | Command | Schedule |
+| --- | --- | --- |
+| `.github/workflows/sync-cards.yml` | `pnpm sync:cards` | 04:17 UTC |
+| `.github/workflows/sync-metagame.yml` | `pnpm sync:metagame` | 05:23 UTC |
+| `.github/workflows/sync-endstep.yml` | `pnpm sync:endstep` | 06:37 UTC |
+
+Configure these in the repository:
+
+- **Secret:** `MONGODB_URI`
+- **Variables:** `MONGODB_DB`, `SCRYFALL_USER_AGENT`
+
+Manual runs of the metagame and endstep workflows accept optional inputs such as
+year/month, format, window, and limits.
+
 ## Environment variables
 
 | Name | Used by | Notes |
 | --- | --- | --- |
-| `MONGODB_URI` | app + both syncs | Atlas connection string or local Mongo |
-| `MONGODB_DB` | app + both syncs | defaults to `spellstutter` |
-| `NEXT_PUBLIC_SUPABASE_URL` | app | Supabase project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | app | browser-safe key |
-| `NEXT_PUBLIC_SITE_URL` | app | canonical origin for auth redirects (optional locally) |
-| `SCRYFALL_USER_AGENT` | syncs | Scryfall asks for a descriptive UA + contact |
-
-## GitHub Actions
-
-Two workflows run on a daily schedule and on manual dispatch:
-
-- `.github/workflows/sync-cards.yml` → `pnpm sync:cards`
-- `.github/workflows/sync-metagame.yml` → `pnpm sync:metagame`
-
-Configure in the repository:
-
-- **Secret** `MONGODB_URI`
-- **Variables** `MONGODB_DB`, `SCRYFALL_USER_AGENT`
+| `MONGODB_URI` | App + all syncs | Atlas connection string or local Mongo |
+| `MONGODB_DB` | App + all syncs | Defaults to `spellstutter` |
+| `NEXT_PUBLIC_SUPABASE_URL` | App | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | App | Browser-safe anon key |
+| `NEXT_PUBLIC_SITE_URL` | App | Canonical origin for auth redirects; required in production |
+| `SCRYFALL_USER_AGENT` | Card sync | Descriptive User-Agent with contact info |
 
 ## Scripts
 
 | Command | Purpose |
 | --- | --- |
-| `pnpm dev` | Next dev server |
-| `pnpm build` / `pnpm start` | production build / serve |
+| `pnpm dev` | Start the Next.js dev server |
+| `pnpm build` / `pnpm start` | Production build / serve |
 | `pnpm lint` | ESLint |
 | `pnpm typecheck` | `tsc --noEmit` |
-| `pnpm test` | unit tests for the archetype rules + search-syntax parser |
+| `pnpm test` | Unit tests (archetype rules, card types, search syntax, auth redirects, rate limiting, matchup stats) |
 | `pnpm sync:cards` | Scryfall → Mongo |
 | `pnpm sync:metagame` | MTGO → Mongo |
 | `pnpm sync:reclassify` | Re-apply archetype rules to stored decks (no network) |
+| `pnpm sync:endstep` | endstep.cc archetypes → Mongo (sample lists + card stats) |
 
 ## Project structure
 
 ```
 src/
   app/
-    (auth)/            login, signup, forgot/reset password (server actions)
+    (auth)/            login, signup, forgot/reset password
     api/cards/         Mongo card detail route handlers
     api/scryfall/      Scryfall search proxy
-    cards/             card search
-    cards/[oracleId]/  card page (printings, legality, archetype usage)
-    decks/             library, deck view, deck editor, public decks
-    events/            MTGO event list + detail
-    metagame/          metagame overview + archetypes
-    notifications/     comment + reply notifications
-    staples/           staple leaderboards (+ per-category sub-pages)
-    settings/profile/  profile + avatar
-    users/[username]/  public profile
-    error.tsx / loading.tsx / sitemap.ts / robots.ts
-  components/          ui primitives, cards, decks, metagame, layout
+    cards/             card search and card detail pages
+    decks/             library, editor, public decks
+    events/            MTGO event list and detail
+    metagame/          overview, archetypes, matchups
+    notifications/     comment and reply notifications
+    staples/           staple leaderboards by category
+    settings/profile/  profile and avatar
+    users/[username]/  public profiles
+  components/          UI primitives and feature components
   lib/
-    cards/             types, mana helpers, search-syntax parser, Mongo queries
-    scryfall/          API client + normalization (shared with the sync script)
-    decks/             queries, actions, stats, export
-    metagame/          types, archetype rules (+ tests), Mongo queries
+    cards/             types, mana helpers, search parser, Mongo queries
+    scryfall/          API client and normalization (shared with sync)
+    decks/             queries, actions, stats, import/export
+    metagame/          archetype rules, endstep helpers, queries
     auth/              session, safe redirects, rate limiting
-    http/              route-handler rate limiting
-    supabase/          server client + proxy session helper
-scripts/               sync-scryfall.ts, scrape-metagame.ts
-supabase/migrations/   Postgres schema + RLS
+    supabase/          server client and session proxy
+scripts/               sync-scryfall, scrape-metagame, sync-endstep, reclassify
+supabase/migrations/   Postgres schema and RLS
 ```
 
-## Card search
+## How it works
 
-Search hits the Scryfall API through `/api/scryfall/search`
+### Card search and legality
+
+Search hits Scryfall through `/api/scryfall/search`
 (`src/lib/scryfall/client.ts`), so the full Scryfall syntax works and every card
 is searchable, Pauper-legal or not. Results carry Scryfall's Pauper legality;
 the add-to-deck action independently re-checks legality against the catalog
 before writing.
 
-## Card pages
-
-`/cards/[oracleId]` shows the card, a gallery of every printing, the full format
+Card pages (`/cards/[oracleId]`) show the card, every printing, the full format
 legality table, and — for Pauper-legal cards — the archetypes that play it with
 inclusion rate and average copies.
 
-## Metagame classification
+### Metagame classification
 
 Decks are grouped by matching mainboard card names against a rule table in
-`src/lib/metagame/archetypes.ts`. Rules can also constrain **colour identity**
-(`requiresColors`, `excludesColors`, `maxColors`), which is how families split
-into real decks: Affinity into Esper / Grixis / Jeskai / Four-Color, Terror into
-Mono-Blue / Izzet / Dimir, Madness into Monored / Izzet / Rakdos, Faeries into
-Dimir / Mono-Blue. A mandatory `requires` card separates lookalikes: any
-artifact shell running Cleansing Wildfire is a Wildfire deck, not Affinity.
+`src/lib/metagame/archetypes.ts`. Rules can also constrain color identity
+(`requiresColors`, `excludesColors`, `maxColors`) to split families into real
+decks: Affinity into Esper / Grixis / Jeskai / Four-Color, Terror into Mono-Blue
+/ Izzet / Dimir, Madness into Monored / Izzet / Rakdos, and Faeries into Dimir /
+Mono-Blue.
 
-Dimir Faeries and Dimir Control share almost their whole removal and
-counterspell shell, so matching on that shell alone lumps them together. The
-Faeries rule therefore requires one of its tempo creatures (Spellstutter Sprite,
-Faerie Seer, Ninja of the Deep Hours, Moon-Circuit Hacker), and Dimir Control
-matches on cards the control build plays but the tempo deck does not (Murmuring
-Mystic, Campfire, Cut Down, Preordain, Plunder the Trollshaws, Lose Focus).
+<details>
+<summary>Classification rules and tuning notes</summary>
 
-Two more rules of thumb encoded in the table:
+- A mandatory `requires` card separates lookalikes: any artifact shell running
+  Cleansing Wildfire is a Wildfire deck, not Affinity.
+- Dimir Faeries and Dimir Control share most of their removal and counterspell
+  shell, so the Faeries rule requires a tempo creature (Spellstutter Sprite,
+  Faerie Seer, Ninja of the Deep Hours, Moon-Circuit Hacker). Dimir Control
+  matches on cards the control build plays but the tempo deck does not.
+- Classification uses mainboard colors only, since sideboards often splash hate
+  cards.
+- `IDENTITY_EXEMPT_CARDS` excludes cards that are effectively free or never
+  cast — Sneaky Snacker, Mutagenic Growth, Faerie Macabre — so those decks are
+  not misread as multicolor.
+- Lists matching no rule fall into `Other`. After changing rules, bump
+  `CLASSIFICATION_VERSION` and run `pnpm sync:reclassify` — no re-scrape needed.
 
-- Classification uses the **mainboard** colours only, since sideboards often
-  splash hate cards.
-- `IDENTITY_EXEMPT_CARDS` lists cards that should not count toward a deck's
-  colour identity because they are effectively free or never cast — Sneaky
-  Snacker (discard payoff in Mono-Red Madness), Mutagenic Growth (Phyrexian
-  green in Mono-Blue Faeries), and Faerie Macabre (sideboard graveyard hate).
-  Without this, those decks misread as multicolour.
+Archetype pages report meta share plus average composition: per-card average
+copies and the share of lists running it, with "Core" marking cards present in
+every list. Seeding a deck adds each 100%-inclusion card at the lowest copy count
+any single list used.
+</details>
 
-After changing rules, run `pnpm sync:reclassify` — no re-scrape needed.
+### endstep.cc archetypes
 
-Lists matching no rule fall into `Other`. Bump `CLASSIFICATION_VERSION` when
-rules change.
+`pnpm sync:endstep` ingests the public endstep.cc metagame API
+(`endstep.cc/api/metagame/v1`) into `endstep_archetypes`. It is a second,
+independent source used for **deckbuilding**, not match results: each archetype
+carries a canonical sample decklist (`sample_list.main` / `sample_list.side`),
+per-card inclusion statistics (`cards_main` / `cards_side`), key cards, colors,
+and aggregate share/players.
 
-The archetype page (`/metagame/archetypes/[slug]`) reports meta share plus an
-average composition — per-card average copies and the share of lists running it,
-with "Core" marking cards present in every list. Seeding a new deck from an
-archetype uses the same data: it adds each 100%-inclusion card at the lowest copy
-count any single list used (so one list with 3 Brainstorm seeds 3, not 4).
+<details>
+<summary>endstep notes</summary>
 
-## Design notes
+```bash
+pnpm sync:endstep                  # Pauper, 30d window, rated population
+pnpm sync:endstep -- --window=90d
+pnpm sync:endstep -- --limit=20 --dry-run
+pnpm sync:endstep -- --no-cards    # skip per-card statistics
+```
 
-- Dark-first UI built from the brand palette, with a full light theme and a
-  persisted toggle. Colors are consumed through semantic tokens, never raw ramps.
+endstep withholds sample lists and card tables below a minimum sample size, so
+some documents have empty `sample_list` / `cards_*`. Sample card names are
+resolved to oracle ids at sync time (including DFC front faces), so seeding needs
+no runtime name lookup. Read helpers live in `src/lib/metagame/endstep.ts`.
+
+The New Deck dialog's "Seed an archetype" picker lists both sources: MTGO
+archetypes (slug as-is) and endstep archetypes (slug prefixed `endstep:`).
+</details>
+
+### Design notes
+
+<details>
+<summary>UI and accessibility choices</summary>
+
+- Dark-first UI with a full light theme and a persisted toggle. Colors are
+  consumed through semantic tokens, never raw ramps.
 - Two typefaces: Bricolage Grotesque (display) and Instrument Sans (body/UI).
-- Motion is capped (120 ms hovers, 240 ms entrances) and fully disabled under
+- Motion is capped (120 ms hovers, 240 ms entrances) and disabled under
   `prefers-reduced-motion`.
-- Semantic HTML (`table` decklists, `dialog`, `details`, `nav`, labels wired to
+- Semantic HTML (`table` decklists, `dialog`, `details`, `nav`, labelled
   controls) and visible focus states throughout.
+</details>
 
-## Known limitations
+### Known limitations
 
-- The metagame classifier is heuristic (v4); uncommon colour combinations still
-  land in `Other` and the rule table should be tuned over time.
-- Deck colour identity in the metagame view is derived from MTGO card colour
-  data, which approximates identity (coloured lands and colourless pips are not
-  resolved). Classification uses mainboard colours only.
-- `mtgo.com` serves an empty shell to plain bot User-Agents, so the scraper
-  presents a browser User-Agent and rate-limits its requests.
-- MTGO sometimes names a card differently from Scryfall — the digital set
-  "Through the Omenpaths" (`om1`) uses reskinned names, for example. Those
-  mappings live in `src/lib/metagame/card-aliases.ts` and must be extended by
-  hand when new mismatches appear.
-- Local development needs a running MongoDB; without `MONGODB_URI` the card and
-  metagame pages show a setup notice rather than failing.
-- Avatar art and cover art are stored as Scryfall CDN URLs; there is no local
-  image mirror.
+<details>
+<summary>Current caveats</summary>
+
+- The metagame classifier is heuristic (v4); uncommon color combinations still
+  land in `Other` and the rule table needs tuning over time.
+- Metagame color identity comes from MTGO card color data, which approximates
+  identity (colored lands and colorless pips are not resolved).
+- `mtgo.com` serves an empty shell to plain bot User-Agents, so the scraper uses
+  a browser User-Agent and rate-limits requests.
+- MTGO sometimes names cards differently from Scryfall (e.g. the digital set
+  "Through the Omenpaths", `om1`). Mappings live in
+  `src/lib/metagame/card-aliases.ts` and must be extended by hand.
+- Avatar and cover art use Scryfall CDN URLs; there is no local image mirror.
+</details>
+
+## Deployment
+
+Spellstutter is a standard Next.js app and can be deployed to any Node host that
+supports Next.js 16 (for example Vercel or a container platform).
+
+1. Set the environment variables above in the host.
+2. Set `NEXT_PUBLIC_SITE_URL` to the production origin — required in production.
+3. Add the production `/auth/callback` URL to Supabase redirect URLs.
+4. Point the app at a production MongoDB (Atlas) and Supabase project.
+5. Let the scheduled workflows keep the catalog and metagame fresh, or run the
+   sync commands from your own scheduler.
+
+## Contributing
+
+Issues and pull requests are welcome.
+
+```bash
+pnpm install
+pnpm lint
+pnpm typecheck
+pnpm test
+```
+
+Before opening a PR:
+
+- Run lint, typecheck, and tests.
+- If you change archetype rules, bump `CLASSIFICATION_VERSION` and run
+  `pnpm sync:reclassify` (or explain why a reclassification is not needed).
+- Keep card legality checks server-side; never trust client-provided legality.
+
+## Data sources and attribution
+
+- Card data from [Scryfall](https://scryfall.com).
+- MTGO Pauper league and challenge results from [mtgo.com](https://www.mtgo.com).
+- Archetype sample lists and statistics from [endstep.cc](https://endstep.cc).
 
 Spellstutter is unofficial Fan Content permitted under the Wizards of the Coast
 Fan Content Policy. Magic: The Gathering is a trademark of Wizards of the Coast
-LLC. Card data from Scryfall.
+LLC.
+
+## License
+
+No license file is currently included in this repository.

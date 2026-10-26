@@ -30,7 +30,7 @@ import type {
   MetagameEventType,
 } from "../src/lib/metagame/types";
 import { identityColors } from "../src/lib/cards/mana";
-import { MTGO_CARD_ALIASES } from "../src/lib/metagame/card-aliases";
+import { MTGO_CARD_ALIASES, isMtgoCardAlias } from "../src/lib/metagame/card-aliases";
 import { nameAliases, normalizeName } from "../src/lib/cards/normalize-name";
 import { withDb } from "./lib/mongo";
 
@@ -203,6 +203,8 @@ function extractDecklistData(html: string): RawDecklistData | null {
 
 interface ResolvedCard {
   oracle_id: string;
+  /** Canonical name, so aliased MTGO reskins display under the paper name. */
+  name: string;
   /** Canonical normalized name, so alias lookups resolve identity correctly. */
   name_normalized: string;
   printing_id: string | null;
@@ -285,6 +287,7 @@ async function buildCardIndex(db: Db): Promise<CardResolver> {
   for await (const doc of cursor) {
     const info: ResolvedCard = {
       oracle_id: doc.oracle_id,
+      name: doc.name,
       name_normalized: normalizeName(doc.name),
       printing_id:
         doc.metagame_printing_id ?? doc.default_printing_id ?? null,
@@ -329,7 +332,9 @@ function toEntries(
       resolved?.name_normalized ?? normalizeName(name),
     );
     return {
-      name,
+      // Reskinned MTGO names (Through the Omenpaths) display under the paper
+      // Spider-Man name; every other card keeps its own name.
+      name: isMtgoCardAlias(name) && resolved ? resolved.name : name,
       quantity,
       oracle_id: resolved?.oracle_id ?? null,
       printing_id: resolved?.printing_id ?? null,
@@ -447,9 +452,9 @@ function normalizeDecks(
       const mainboard = toEntries(deck.main_deck, resolver);
       const sideboard = toEntries(deck.sideboard_deck, resolver);
       const record = parseRecord(deck.wins);
-      // Colour identity is the mainboard's: sideboards are full of off-colour
+      // Color identity is the mainboard's: sideboards are full of off-color
       // hate (Blue Elemental Blast, Faerie Macabre) that would make a
-      // mono-green Elves deck read as five-colour.
+      // mono-green Elves deck read as five-color.
       const mainIdentity = identityOf(deck.main_deck ?? [], resolver);
       const classification = classifyDeck(
         mainboard.map((entry) => entry.name),

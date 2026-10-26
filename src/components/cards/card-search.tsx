@@ -30,8 +30,8 @@ type Status = "idle" | "loading" | "ready" | "error";
 const SYNTAX_EXAMPLES = [
   ["t:creature", "type line"],
   ['o:"draw a card"', "oracle text"],
-  ["c:ub", "card colour"],
-  ["id:wu", "colour identity"],
+  ["c:ub", "card color"],
+  ["id:wu", "color identity"],
   ["cmc<=2", "mana value"],
   ["is:spell", "card kind"],
   ["!" + '"Counterspell"', "exact name"],

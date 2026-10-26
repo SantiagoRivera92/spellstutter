@@ -13,6 +13,9 @@ import {
   getProfileByUserId,
 } from "@/lib/decks/queries";
 import { isSupabaseConfigured } from "@/lib/env";
+import { getEndstepArchetype } from "@/lib/metagame/endstep";
+
+const ENDSTEP_PREFIX = "endstep:";
 
 export const dynamic = "force-dynamic";
 
@@ -61,10 +64,16 @@ export default async function DeckPage({ params }: PageProps<"/decks/[deckId]">)
 
   const session = await getSession();
   const canEdit = session?.id === view.deck.user_id;
-  const [owner, comments, folders] = await Promise.all([
+  const archetypeSlug = view.deck.archetype_slug;
+  const [owner, comments, folders, endstepArchetype] = await Promise.all([
     canEdit ? Promise.resolve(null) : getProfileByUserId(view.deck.user_id),
     getDeckComments(deckId),
     canEdit ? getFolders() : Promise.resolve([]),
+    archetypeSlug?.startsWith(ENDSTEP_PREFIX)
+      ? getEndstepArchetype(
+          archetypeSlug.slice(ENDSTEP_PREFIX.length),
+        ).catch(() => null)
+      : Promise.resolve(null),
   ]);
 
   return (
@@ -74,6 +83,7 @@ export default async function DeckPage({ params }: PageProps<"/decks/[deckId]">)
         canEdit={canEdit}
         ownerName={owner?.username}
         folders={folders}
+        archetypeLabel={endstepArchetype?.name}
       />
       <DeckTabs
         defaultTab="list"

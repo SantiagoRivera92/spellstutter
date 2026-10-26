@@ -31,7 +31,7 @@ export function ThemeToggle() {
       type="button"
       onClick={toggle}
       className="inline-flex size-9 items-center justify-center rounded-md text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground"
-      aria-label="Toggle colour theme"
+      aria-label="Toggle color theme"
     >
       <Sun
         className="hidden size-4 [html[data-theme=light]_&]:block"

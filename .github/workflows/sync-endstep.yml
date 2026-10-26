@@ -1,0 +1,60 @@
+name: Sync endstep archetypes
+
+on:
+  schedule:
+    # Daily at 06:37 UTC — after the card catalog and MTGO syncs, since sample
+    # lists resolve card names against the stored Scryfall catalog.
+    - cron: "37 6 * * *"
+  workflow_dispatch:
+    inputs:
+      format:
+        description: Format to sync (defaults to Pauper)
+        required: false
+      window:
+        description: Time window, e.g. 30d or 90d (defaults to 30d)
+        required: false
+      population:
+        description: Population, e.g. rated (defaults to rated)
+        required: false
+      limit:
+        description: Maximum archetypes to ingest (defaults to all)
+        required: false
+      no_cards:
+        description: Skip per-card inclusion statistics
+        type: boolean
+        default: false
+
+concurrency:
+  group: sync-endstep
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Sync endstep.cc archetypes to MongoDB
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          MONGODB_DB: ${{ vars.MONGODB_DB || 'spellstutter' }}
+        run: |
+          ARGS=""
+          if [ -n "${{ inputs.format }}" ]; then ARGS="$ARGS --format=${{ inputs.format }}"; fi
+          if [ -n "${{ inputs.window }}" ]; then ARGS="$ARGS --window=${{ inputs.window }}"; fi
+          if [ -n "${{ inputs.population }}" ]; then ARGS="$ARGS --population=${{ inputs.population }}"; fi
+          if [ -n "${{ inputs.limit }}" ]; then ARGS="$ARGS --limit=${{ inputs.limit }}"; fi
+          if [ "${{ inputs.no_cards }}" = "true" ]; then ARGS="$ARGS --no-cards"; fi
+          pnpm sync:endstep -- $ARGS

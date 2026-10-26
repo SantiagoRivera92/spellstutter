@@ -13,6 +13,8 @@ import type {
   MetagameEvent,
   MetagameSummary,
 } from "./types";
+import type { EndstepMatchup, EndstepMatchupRecord } from "@/lib/metagame/types";
+import { ENDSTEP_ARCHETYPE_BY_RULE, endstepSlugForRule } from "./endstep-archetypes";
 
 // `_id` is an ObjectId (has toJSON) and cannot be passed from Server to Client
 // Components, so it is always projected out.
@@ -102,13 +104,13 @@ export interface ArchetypeOverview {
   art_crop: string | null;
 }
 
-/** A colour is core to an archetype only if it appears in >= this share of its cards. */
+/** A color is core to an archetype only if it appears in >= this share of its cards. */
 const COLOR_SHARE_THRESHOLD = 0.02;
 
 /**
- * Archetype colours are the colours its cards actually play, not the union of
- * its decks' identities: a mono-green Elves deck should not read as five-colour
- * just because one list splashes a sideboard card. Colours under the threshold
+ * Archetype colors are the colors its cards actually play, not the union of
+ * its decks' identities: a mono-green Elves deck should not read as five-color
+ * just because one list splashes a sideboard card. Colors under the threshold
  * are treated as outliers and dropped.
  */
 const ARCHETYPE_COLORS_TTL_MS = 5 * 60_000;
@@ -190,6 +192,34 @@ async function getArchetypeColors(
   return result;
 }
 
+/**
+ * endstep's metagame share per archetype, keyed by this app's archetype slug.
+ *
+ * endstep reports each archetype's share of the whole metagame, unlike the
+ * MTGO-derived share which only covers lists that finished well. Only mapped
+ * archetypes have a value here; callers fall back to the MTGO share otherwise.
+ */
+export async function getEndstepShareByRule(): Promise<Map<string, number>> {
+  const db = await getDb();
+  const rows = await db
+    .collection<{ slug: string; share_rate: number | null }>(
+      COLLECTIONS.endstepArchetypes,
+    )
+    .find(
+      { format_id: "Pauper" },
+      { projection: { _id: 0, slug: 1, share_rate: 1 } },
+    )
+    .toArray();
+
+  const byEndstepSlug = new Map(rows.map((row) => [row.slug, row.share_rate]));
+  const byRule = new Map<string, number>();
+  for (const [rule, endstep] of Object.entries(ENDSTEP_ARCHETYPE_BY_RULE)) {
+    const rate = byEndstepSlug.get(endstep);
+    if (rate != null) byRule.set(rule, rate);
+  }
+  return byRule;
+}
+
 export async function listArchetypeOverview(
   days = 30,
 ): Promise<ArchetypeOverview[]> {
@@ -198,7 +228,7 @@ export async function listArchetypeOverview(
   const decks = db.collection<MetagameDeck>(COLLECTIONS.decks);
   const archetypeColors = await getArchetypeColors(since);
 
-  const [rows, cardRows] = await Promise.all([
+  const [rows, cardRows, endstepShares] = await Promise.all([
     decks
       .aggregate<{
         _id: string;
@@ -238,6 +268,7 @@ export async function listArchetypeOverview(
         },
       ])
       .toArray(),
+    getEndstepShareByRule(),
   ]);
 
   const total = rows.reduce((sum, row) => sum + row.decks, 0);
@@ -329,24 +360,28 @@ export async function listArchetypeOverview(
     }
   }
 
-  return rows.map((row) => {
-    const ranks = (row.ranks ?? []).filter(
-      (rank): rank is number => typeof rank === "number",
-    );
-    const sig = signature.get(row._id) ?? null;
-    return {
-      slug: row._id,
-      name: row.name,
-      decks: row.decks,
-      share: total ? row.decks / total : 0,
-      color_identity: archetypeColors.get(row._id) ?? [],
-      average_rank: ranks.length
-        ? ranks.reduce((sum, rank) => sum + rank, 0) / ranks.length
-        : null,
-      signature_name: sig?.name ?? null,
-      art_crop: sig ? (artByOracle.get(sig.oracle_id) ?? null) : null,
-    };
-  });
+  return rows
+    .map((row) => {
+      const ranks = (row.ranks ?? []).filter(
+        (rank): rank is number => typeof rank === "number",
+      );
+      const sig = signature.get(row._id) ?? null;
+      return {
+        slug: row._id,
+        name: row.name,
+        decks: row.decks,
+        // Prefer endstep's share of the whole metagame; fall back to the share
+        // of the MTGO lists we scraped when this archetype has no mapping.
+        share: endstepShares.get(row._id) ?? (total ? row.decks / total : 0),
+        color_identity: archetypeColors.get(row._id) ?? [],
+        average_rank: ranks.length
+          ? ranks.reduce((sum, rank) => sum + rank, 0) / ranks.length
+          : null,
+        signature_name: sig?.name ?? null,
+        art_crop: sig ? (artByOracle.get(sig.oracle_id) ?? null) : null,
+      };
+    })
+    .sort((a, b) => b.share - a.share);
 }
 
 function isoDateDaysAgo(days: number): string {
@@ -912,5 +947,89 @@ export async function getArchetypeStat(
       : null,
     color_identity: archetypeColors.get(row._id) ?? [],
     top_cards: cardRows.map((card) => ({ name: card._id, count: card.count })),
+  };
+}
+
+/**
+ * A win/loss record for an archetype. `source` records where the numbers came
+ * from so the UI can label them.
+ */
+export interface ArchetypeRecord {
+  wins: number;
+  losses: number;
+  matches: number;
+  win_rate: number | null;
+  source: "endstep" | "mtgo";
+}
+
+/** Resolve one of this app's archetype slugs to an endstep archetype slug. */
+function endstepSlug(slug: string): string | null {
+  return endstepSlugForRule(slug);
+}
+
+/** Fetch the head-to-head matchup records for an archetype from endstep data. */
+export async function getArchetypeMatchups(
+  slug: string,
+  days = 30,
+): Promise<EndstepMatchupRecord[]> {
+  const endstepArchetype = endstepSlug(slug);
+  if (!endstepArchetype) return [];
+  const db = await getDb();
+  const collection = db.collection<EndstepMatchupRecord>(COLLECTIONS.endstepMatchups);
+  return collection
+    .find({
+      format_id: "Pauper",
+      archetype_slug: endstepArchetype,
+      window: `${days}d`,
+    })
+    .sort({ "match.matches": -1 })
+    .toArray();
+}
+
+/**
+ * Win/loss record for an archetype summed across its endstep matchups.
+ *
+ * endstep reports a win rate plus per-opponent W/L counts; summing the counts
+ * gives the overall record. Returns null when the archetype has no endstep
+ * mapping or no matchup data, so callers can fall back to the MTGO record.
+ */
+export async function getEndstepArchetypeRecord(
+  slug: string,
+  days = 30,
+): Promise<ArchetypeRecord | null> {
+  const endstepArchetype = endstepSlug(slug);
+  if (!endstepArchetype) return null;
+
+  const db = await getDb();
+  const matchups = await db
+    .collection<EndstepMatchupRecord>(COLLECTIONS.endstepMatchups)
+    .find(
+      {
+        format_id: "Pauper",
+        archetype_slug: endstepArchetype,
+        window: `${days}d`,
+      },
+      { projection: { _id: 0, "match.wins": 1, "match.losses": 1, "match.matches": 1 } },
+    )
+    .toArray();
+  if (!matchups.length) return null;
+
+  let wins = 0;
+  let losses = 0;
+  let matches = 0;
+  for (const record of matchups) {
+    const match: Partial<EndstepMatchup> = record.match ?? {};
+    wins += match.wins ?? 0;
+    losses += match.losses ?? 0;
+    matches += match.matches ?? (match.wins ?? 0) + (match.losses ?? 0);
+  }
+
+  const decided = wins + losses;
+  return {
+    wins,
+    losses,
+    matches,
+    win_rate: decided > 0 ? wins / decided : null,
+    source: "endstep",
   };
 }

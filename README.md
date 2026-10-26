@@ -354,6 +354,10 @@ and set:
 - **Build command:** `pnpm run cf:build`
 - **Deploy command:** `npx wrangler deploy`
 
+> The build command must be `pnpm run cf:build`, not `pnpm run build`.
+> `pnpm run build` only creates `.next`; `wrangler deploy` auto-detects
+> OpenNext and needs the `.open-next` output produced by the OpenNext build.
+
 Add the runtime variables and secrets from `.env.example` under
 **Settings → Variables & Secrets**. `MONGODB_URI`, `MONGODB_DB`,
 `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and

@@ -368,6 +368,10 @@ Cloudflare, abre **Workers & Pages → spellstutter → Settings → Builds** y 
 - **Build command:** `pnpm run cf:build`
 - **Deploy command:** `npx wrangler deploy`
 
+> El comando de build debe ser `pnpm run cf:build`, no `pnpm run build`.
+> `pnpm run build` solo genera `.next`; `wrangler deploy` detecta OpenNext y
+> necesita la salida `.open-next` que produce el build de OpenNext.
+
 Añade las variables y secretos de ejecución de `.env.example` en
 **Settings → Variables & Secrets**. En producción son obligatorias
 `MONGODB_URI`, `MONGODB_DB`, `NEXT_PUBLIC_SUPABASE_URL`,

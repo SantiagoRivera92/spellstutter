@@ -3,7 +3,10 @@
   "name": "spellstutter",
   "main": ".open-next/worker.js",
   "compatibility_date": "2026-10-23",
-  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "compatibility_flags": [
+    "nodejs_compat",
+    "global_fetch_strictly_public"
+  ],
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS"
@@ -13,5 +16,11 @@
   },
   "observability": {
     "enabled": true
-  }
+  },
+  "vars": {
+    "MONGODB_DB": "spellstutter",
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJmaGxqcHFzcmpvY2lreXhhZGlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA2MDAxODIsImV4cCI6MjEwNjE3NjE4Mn0.qvoYV26R0vdBmIeLJ9KibpEWC4WRDf4KzPdlCIM2Nu8",
+    "NEXT_PUBLIC_SUPABASE_URL": "https://bfhljpqsrjocikyxadis.supabase.co",
+    "SUPABASE_SERVICE_ROLE_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJmaGxqcHFzcmpvY2lreXhhZGlzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MDYwMDE4MiwiZXhwIjoyMTA2MTc2MTgyfQ.8pt7EVI7ftAp4ODhWh8WzytRRkMkviOsHg98Gx_iPk8"
+  },
 }

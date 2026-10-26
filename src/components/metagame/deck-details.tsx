@@ -69,6 +69,16 @@ export function DeckDetails({ deck }: { deck: MetagameDeck }) {
           <span className="numeric text-xs text-muted-foreground">
             Rank {deck.rank}
           </span>
+        ) : null}
+        {deck.wins != null && deck.losses != null ? (
+          <span
+            className="numeric text-xs text-muted-foreground"
+            title="Match record (wins-losses-draws); byes excluded when known"
+          >
+            {deck.wins}-{deck.losses}
+            {deck.draws ? `-${deck.draws}` : ""}
+            {deck.byes ? ` · ${deck.byes} bye` : ""}
+          </span>
         ) : deck.wins != null ? (
           <span className="numeric text-xs text-muted-foreground">
             {deck.wins} wins

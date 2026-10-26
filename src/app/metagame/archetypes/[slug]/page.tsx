@@ -13,11 +13,12 @@ import { archetypeName } from "@/lib/metagame/archetypes";
 import {
   getArchetypeBreakdown,
   getArchetypeStat,
+  getCombinedArchetypeRecord,
   listDecksByArchetype,
   type ArchetypeRecord,
 } from "@/lib/metagame/queries";
 import type { ArchetypeCardStat } from "@/lib/metagame/types";
-import { getArchetypeMatchups, getEndstepArchetypeRecord } from "@/lib/metagame/queries";
+import { getCombinedArchetypeMatchups } from "@/lib/metagame/queries";
 import { wilsonScoreInterval } from "@/lib/metagame/wilson";
 
 export const dynamic = "force-dynamic";
@@ -48,21 +49,21 @@ export default async function ArchetypePage({
     getSession(),
     listDecksByArchetype(slug).catch(() => []),
   ]);
-  const [stat, breakdown, matchups, endstepRecord] = session
+  const [stat, breakdown, matchups, combinedRecord] = session
     ? await Promise.all([
         getArchetypeStat(slug, 30).catch(() => null),
         getArchetypeBreakdown(slug, 30).catch(() => null),
-        getArchetypeMatchups(slug, 30).catch(() => []),
-        getEndstepArchetypeRecord(slug, 30).catch(() => null),
+        getCombinedArchetypeMatchups(slug, 30).catch(() => []),
+        getCombinedArchetypeRecord(slug, 30).catch(() => null),
       ])
     : [null, null, [], null];
 
   const hasMatchups = matchups.length > 0;
 
-  // Prefer the endstep record (clean API, full matchup set); fall back to the
-  // MTGO-scraped wins/losses when this archetype has no endstep equivalent.
+  // Prefer the combined Melee + endstep record; fall back to the MTGO-scraped
+  // wins/losses only when neither source has data for this archetype.
   const record: ArchetypeRecord | null =
-    endstepRecord ??
+    combinedRecord ??
     (stat && stat.win_rate != null
       ? {
           wins: stat.wins,
@@ -73,12 +74,39 @@ export default async function ArchetypePage({
         }
       : null);
 
-  const recordValue = record ? `${record.wins}-${record.losses}` : null;
+  const recordValue = record
+    ? `${record.wins}-${record.losses}${
+        record.draws ? `-${record.draws}` : ""
+      }`
+    : null;
   const recordSource = record
-    ? record.source === "endstep"
-      ? "endstep · 30d"
-      : "MTGO · 30d"
+    ? record.source === "combined"
+      ? "Melee + endstep · 30d"
+      : record.source === "melee"
+        ? "Melee · 30d"
+        : record.source === "endstep"
+          ? "endstep · 30d"
+          : "MTGO · 30d"
     : undefined;
+  const recordNoteParts: string[] = [];
+  if (record?.source === "combined" && record.melee && record.endstep) {
+    recordNoteParts.push(
+      `Melee ${record.melee.wins}-${record.melee.losses}${
+        record.melee.draws ? `-${record.melee.draws}` : ""
+      } · endstep ${record.endstep.wins}-${record.endstep.losses}`,
+    );
+  }
+  if (
+    record?.source === "combined" &&
+    record.endstep_group_variants &&
+    record.endstep_group_variants > 1
+  ) {
+    recordNoteParts.push(
+      `endstep groups ${record.endstep_group_variants} variants`,
+    );
+  }
+  const recordNote =
+    recordNoteParts.length > 0 ? recordNoteParts.join(" · ") : undefined;
   const winrateValue =
     record?.win_rate != null ? `${(record.win_rate * 100).toFixed(1)}%` : "—";
   const wilson = record ? wilsonScoreInterval(record.wins, record.losses) : null;
@@ -102,7 +130,7 @@ export default async function ArchetypePage({
 
       <PageHeader
         title={archetypeName(slug)}
-        description="Top-performing and recent MTGO lists for this archetype."
+        description="Top-performing and recent paper and MTGO lists for this archetype."
       />
 
       {session && stat ? (
@@ -112,11 +140,13 @@ export default async function ArchetypePage({
             label="Record"
             value={recordValue ?? "—"}
             sub={recordSource}
+            note={recordNote}
           />
           <Metric
             label="Winrate"
             value={winrateValue}
             sub={recordSource}
+            note={recordNote}
           />
           <Metric
             label="95% confidence winrate"
@@ -225,10 +255,12 @@ function Metric({
   label,
   value,
   sub,
+  note,
 }: {
   label: string;
   value: string | number;
   sub?: string;
+  note?: string;
 }) {
   return (
     <div className="rounded-lg border border-border bg-card px-4 py-3">
@@ -236,6 +268,9 @@ function Metric({
       <dd className="font-display text-lg font-medium numeric">{value}</dd>
       {sub ? (
         <dd className="text-[11px] text-muted-foreground">{sub}</dd>
+      ) : null}
+      {note ? (
+        <dd className="text-[11px] text-muted-foreground">{note}</dd>
       ) : null}
     </div>
   );

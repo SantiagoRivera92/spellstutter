@@ -69,6 +69,18 @@ export interface MetagameDeck {
   rank: number | null;
   wins: number | null;
   losses: number | null;
+  /** Melee decklist id, used to join pairings back to this deck. */
+  decklist_id?: string | null;
+  /** Melee team id, used when a pairing omits the decklist id. */
+  melee_team_id?: number | null;
+  /** Match draws and byes, when reported separately from wins/losses. */
+  draws?: number | null;
+  byes?: number | null;
+  /** Where wins/losses came from. Melee uses pairings when available. */
+  record_source?: "standings" | "pairings";
+  /** Official standings record, retained when pairings override it. */
+  standings_wins?: number | null;
+  standings_losses?: number | null;
   color_identity: CardColor[];
   mainboard: MetagameCardEntry[];
   sideboard: MetagameCardEntry[];
@@ -78,6 +90,32 @@ export interface MetagameDeck {
     confidence: number;
   };
   classification_version: string;
+  scraped_at: string;
+}
+
+/** One side of a Melee round pairing, stored from that player's perspective. */
+export interface MeleeMatchRecord {
+  event_slug: string;
+  event_name: string;
+  event_date: string;
+  round_id: string;
+  round_number: number;
+  round_name: string;
+  match_id: string;
+  table_number: number | null;
+  player: string;
+  player_team_id: number | null;
+  player_decklist_id: string | null;
+  player_archetype: { slug: string; name: string } | null;
+  opponent: string | null;
+  opponent_team_id: number | null;
+  opponent_decklist_id: string | null;
+  opponent_archetype: { slug: string; name: string } | null;
+  result: "win" | "loss" | "draw" | "bye" | "unknown";
+  game_wins: number;
+  game_losses: number;
+  game_draws: number;
+  source: "melee";
   scraped_at: string;
 }
 
@@ -177,6 +215,36 @@ export interface EndstepMatchupRecord {
   share_rate_at_sync: number | null;
   fetched_at: string;
   match: EndstepMatchup;
+}
+
+/** One source's contribution to a combined matchup row. */
+export interface MatchupSourceRecord {
+  wins: number;
+  losses: number;
+  draws: number;
+  matches: number;
+}
+
+/**
+ * A matchup row that may combine exact Melee archetypes with endstep data.
+ *
+ * endstep groups some variants (for example every Affinity colour) under one
+ * archetype, so an endstep row is marked `scope: "group"` unless its slug maps
+ * back to exactly one app archetype. Melee rows always use exact app slugs.
+ */
+export interface CombinedMatchup {
+  opponent_slug: string;
+  opponent_name: string;
+  wins: number;
+  losses: number;
+  draws: number;
+  matches: number;
+  win_rate: number | null;
+  melee: MatchupSourceRecord;
+  endstep: MatchupSourceRecord;
+  scope: "exact" | "group";
+  endstep_opponent_slug: string | null;
+  melee_opponent_slugs: string[];
 }
 
 /** An endstep archetype with its matchup data. */

@@ -30,11 +30,13 @@ actually winning.
   archetype's core.
 - **Library and folders** — a nested folder tree, cover art, public decks, and
   per-deck comments.
-- **Metagame tracker** — daily MTGO league and challenge results split into
-  color-aware archetypes, with meta share, average composition, matchup
-  records, and staple leaderboards.
+- **Metagame tracker** — daily MTGO league and challenge results, plus paper
+  Melee events, split into color-aware archetypes with meta share, average
+  composition, matchup records, and staple leaderboards.
+- **Combined winrates** — exact Melee pairing records combined with endstep
+  matchup aggregates, including per-deck match records.
 - **Second archetype source** — endstep.cc sample lists and per-card inclusion
-  stats for deckbuilding.
+  stats for deckbuilding and matchup aggregates.
 - **Accounts and notifications** — Supabase Auth, profiles, comment/reply
   notifications, and row-level security.
 
@@ -55,6 +57,7 @@ actually winning.
 ```
 Scryfall bulk API ───sync:cards────▶ MongoDB: cards, printings
 mtgo.com decklists ──sync:metagame─▶ MongoDB: metagame_events, metagame_decks
+melee.gg pairings ───sync:melee────▶ MongoDB: metagame_events, metagame_decks, melee_matches
 endstep.cc API ──────sync:endstep──▶ MongoDB: endstep_archetypes, endstep_matchups
                                            │
                       Next.js (App Router) ─┼─▶ /api/cards/*, /api/scryfall/*
@@ -148,6 +151,7 @@ show a setup notice instead of failing.
 | --- | --- | --- | --- |
 | `pnpm sync:cards` | Scryfall bulk API | `cards`, `printings` | Daily, 04:17 UTC |
 | `pnpm sync:metagame` | mtgo.com decklists | `metagame_events`, `metagame_decks` | Daily, 05:23 UTC |
+| `pnpm sync:melee` | melee.gg paper Pauper | `metagame_events`, `metagame_decks`, `melee_matches` | Daily, 07:13 UTC |
 | `pnpm sync:endstep` | endstep.cc metagame API | `endstep_archetypes`, `endstep_matchups` | Daily, 06:37 UTC |
 | `pnpm sync:reclassify` | stored decks only | Recomputes archetype + color | Manual |
 
@@ -155,24 +159,28 @@ show a setup notice instead of failing.
 canonical document per oracle id plus one per printing. `sync:metagame` reads the
 `window.MTGO.decklists.data` payload embedded in each decklist page (no DOM
 scraping) and classifies each list with `src/lib/metagame/archetypes.ts`.
+`sync:melee` walks completed Melee rounds, stores one row per player per match
+in `melee_matches`, and replaces each deck's standings-only record with the
+pairing record (byes excluded). It defaults to events with at least 16 players.
 
 ## GitHub Actions
 
-Three workflows run daily and can be triggered manually from the Actions tab:
+Four workflows run daily and can be triggered manually from the Actions tab:
 
 | Workflow | Command | Schedule |
 | --- | --- | --- |
 | `.github/workflows/sync-cards.yml` | `pnpm sync:cards` | 04:17 UTC |
 | `.github/workflows/sync-metagame.yml` | `pnpm sync:metagame` | 05:23 UTC |
 | `.github/workflows/sync-endstep.yml` | `pnpm sync:endstep` | 06:37 UTC |
+| `.github/workflows/sync-melee.yml` | `pnpm sync:melee` | 07:13 UTC |
 
 Configure these in the repository:
 
 - **Secret:** `MONGODB_URI`
 - **Variables:** `MONGODB_DB`, `SCRYFALL_USER_AGENT`
 
-Manual runs of the metagame and endstep workflows accept optional inputs such as
-year/month, format, window, and limits.
+Manual runs of the metagame, Melee, and endstep workflows accept optional inputs
+such as year/month, format, window, and limits.
 
 ## Environment variables
 
@@ -276,11 +284,12 @@ any single list used.
 ### endstep.cc archetypes
 
 `pnpm sync:endstep` ingests the public endstep.cc metagame API
-(`endstep.cc/api/metagame/v1`) into `endstep_archetypes`. It is a second,
-independent source used for **deckbuilding**, not match results: each archetype
-carries a canonical sample decklist (`sample_list.main` / `sample_list.side`),
-per-card inclusion statistics (`cards_main` / `cards_side`), key cards, colors,
-and aggregate share/players.
+(`endstep.cc/api/metagame/v1`) into `endstep_archetypes` and
+`endstep_matchups`. It is a second, independent source used for deckbuilding and
+matchup aggregates: each archetype carries a canonical sample decklist
+(`sample_list.main` / `sample_list.side`), per-card inclusion statistics
+(`cards_main` / `cards_side`), key cards, colors, aggregate share/players, and
+per-opponent win/loss counts.
 
 <details>
 <summary>endstep notes</summary>
@@ -300,6 +309,21 @@ no runtime name lookup. Read helpers live in `src/lib/metagame/endstep.ts`.
 The New Deck dialog's "Seed an archetype" picker lists both sources: MTGO
 archetypes (slug as-is) and endstep archetypes (slug prefixed `endstep:`).
 </details>
+
+### Combined winrates
+
+Archetype pages show a combined record from exact Melee pairings plus endstep
+matchups. Matchup pages keep the two granularities visible:
+
+- **Melee rows** use this app's exact archetype slugs.
+- **endstep rows** use endstep's taxonomy. When endstep folds several variants
+  into one bucket (for example every Affinity colour), the row is marked
+  `endstep group` and cannot be split back into variants.
+- When an endstep bucket maps to exactly one app archetype, the Melee and
+  endstep counts merge into one exact row.
+
+Melee per-deck records come from round pairings, not standings: byes are stored
+separately and excluded from winrate denominators.
 
 ### Design notes
 

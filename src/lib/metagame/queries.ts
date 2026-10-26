@@ -13,8 +13,18 @@ import type {
   MetagameEvent,
   MetagameSummary,
 } from "./types";
-import type { EndstepMatchup, EndstepMatchupRecord } from "@/lib/metagame/types";
-import { ENDSTEP_ARCHETYPE_BY_RULE, endstepSlugForRule } from "./endstep-archetypes";
+import type {
+  CombinedMatchup,
+  EndstepMatchup,
+  EndstepMatchupRecord,
+  MatchupSourceRecord,
+  MeleeMatchRecord,
+} from "@/lib/metagame/types";
+import {
+  ENDSTEP_ARCHETYPE_BY_RULE,
+  endstepSlugForRule,
+  ruleSlugsForEndstep,
+} from "./endstep-archetypes";
 
 // `_id` is an ObjectId (has toJSON) and cannot be passed from Server to Client
 // Components, so it is always projected out.
@@ -959,7 +969,13 @@ export interface ArchetypeRecord {
   losses: number;
   matches: number;
   win_rate: number | null;
-  source: "endstep" | "mtgo";
+  source: "endstep" | "mtgo" | "melee" | "combined";
+  draws?: number;
+  byes?: number;
+  melee?: MatchupSourceRecord;
+  endstep?: MatchupSourceRecord;
+  endstep_group_slug?: string | null;
+  endstep_group_variants?: number;
 }
 
 /** Resolve one of this app's archetype slugs to an endstep archetype slug. */
@@ -1031,5 +1047,243 @@ export async function getEndstepArchetypeRecord(
     matches,
     win_rate: decided > 0 ? wins / decided : null,
     source: "endstep",
+    endstep: { wins, losses, draws: 0, matches },
   };
+}
+
+function winRate(wins: number, losses: number): number | null {
+  const decided = wins + losses;
+  return decided > 0 ? wins / decided : null;
+}
+
+function sourceRecord(
+  wins: number,
+  losses: number,
+  draws = 0,
+): MatchupSourceRecord {
+  return { wins, losses, draws, matches: wins + losses + draws };
+}
+
+/**
+ * Win/loss record from Melee deck pairings only.
+ *
+ * The Melee sync writes `wins`/`losses` from per-round pairings (excluding
+ * byes) when pairings are available, and keeps the official standings record in
+ * `standings_wins` / `standings_losses`. This sums the best available Melee
+ * record for one exact app archetype.
+ */
+export async function getMeleeArchetypeRecord(
+  slug: string,
+  days = 30,
+): Promise<ArchetypeRecord | null> {
+  const db = await getDb();
+  const since = isoDateDaysAgo(days);
+  const [row] = await db
+    .collection<MetagameDeck>(COLLECTIONS.decks)
+    .aggregate<{
+      wins: number;
+      losses: number;
+      draws: number;
+      byes: number;
+      decks: number;
+    }>([
+      {
+        $match: {
+          "archetype.slug": slug,
+          event_slug: { $regex: /^melee-/ },
+          event_date: { $gte: since },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          wins: { $sum: { $ifNull: ["$wins", 0] } },
+          losses: { $sum: { $ifNull: ["$losses", 0] } },
+          draws: { $sum: { $ifNull: ["$draws", 0] } },
+          byes: { $sum: { $ifNull: ["$byes", 0] } },
+          decks: { $sum: 1 },
+        },
+      },
+    ])
+    .toArray();
+  if (!row || row.decks === 0) return null;
+
+  const wins = row.wins ?? 0;
+  const losses = row.losses ?? 0;
+  const draws = row.draws ?? 0;
+  const byes = row.byes ?? 0;
+  return {
+    wins,
+    losses,
+    matches: wins + losses + draws,
+    win_rate: winRate(wins, losses),
+    source: "melee",
+    draws,
+    byes,
+    melee: sourceRecord(wins, losses, draws),
+  };
+}
+
+/**
+ * Combined record from Melee pairings and endstep matchups.
+ *
+ * Melee is exact for the requested app archetype. endstep may be group-level
+ * when several app variants share one endstep slug; the returned
+ * `endstep_group_slug` / `endstep_group_variants` fields expose that.
+ */
+export async function getCombinedArchetypeRecord(
+  slug: string,
+  days = 30,
+): Promise<ArchetypeRecord | null> {
+  const [melee, endstep] = await Promise.all([
+    getMeleeArchetypeRecord(slug, days),
+    getEndstepArchetypeRecord(slug, days),
+  ]);
+
+  if (!melee && !endstep) return null;
+  if (!melee) return endstep;
+  if (!endstep) return melee;
+
+  const wins = melee.wins + endstep.wins;
+  const losses = melee.losses + endstep.losses;
+  const endstepGroup = endstepSlug(slug);
+  const variants = endstepGroup ? ruleSlugsForEndstep(endstepGroup) : [];
+
+  return {
+    wins,
+    losses,
+    matches: wins + losses + (melee.draws ?? 0),
+    win_rate: winRate(wins, losses),
+    source: "combined",
+    draws: melee.draws ?? 0,
+    byes: melee.byes ?? 0,
+    melee:
+      melee.melee ?? sourceRecord(melee.wins, melee.losses, melee.draws ?? 0),
+    endstep:
+      endstep.endstep ??
+      sourceRecord(endstep.wins, endstep.losses, endstep.draws ?? 0),
+    endstep_group_slug: endstepGroup,
+    endstep_group_variants: variants.length,
+  };
+}
+
+interface MeleeMatchupAggregate {
+  _id: string;
+  name: string;
+  wins: number;
+  losses: number;
+  draws: number;
+  matches: number;
+}
+
+/**
+ * Matchup rows combining exact Melee archetypes with endstep data.
+ *
+ * Melee rows always use exact app slugs. endstep rows stay at endstep's
+ * granularity: if an endstep slug maps to exactly one app archetype, it merges
+ * into that exact row; otherwise it remains a separate `scope: "group"` row.
+ */
+export async function getCombinedArchetypeMatchups(
+  slug: string,
+  days = 30,
+): Promise<CombinedMatchup[]> {
+  const db = await getDb();
+  const since = isoDateDaysAgo(days);
+  const [meleeRows, endstepRows] = await Promise.all([
+    db
+      .collection<MeleeMatchRecord>(COLLECTIONS.meleeMatches)
+      .aggregate<MeleeMatchupAggregate>([
+        {
+          $match: {
+            "player_archetype.slug": slug,
+            event_date: { $gte: since },
+            result: { $in: ["win", "loss", "draw"] },
+            "opponent_archetype.slug": { $type: "string" },
+          },
+        },
+        {
+          $group: {
+            _id: "$opponent_archetype.slug",
+            name: { $first: "$opponent_archetype.name" },
+            wins: {
+              $sum: { $cond: [{ $eq: ["$result", "win"] }, 1, 0] },
+            },
+            losses: {
+              $sum: { $cond: [{ $eq: ["$result", "loss"] }, 1, 0] },
+            },
+            draws: {
+              $sum: { $cond: [{ $eq: ["$result", "draw"] }, 1, 0] },
+            },
+            matches: { $sum: 1 },
+          },
+        },
+      ])
+      .toArray(),
+    getArchetypeMatchups(slug, days),
+  ]);
+
+  const byKey = new Map<string, CombinedMatchup>();
+  for (const row of meleeRows) {
+    byKey.set(`exact:${row._id}`, {
+      opponent_slug: row._id,
+      opponent_name: row.name,
+      wins: row.wins,
+      losses: row.losses,
+      draws: row.draws,
+      matches: row.matches,
+      win_rate: winRate(row.wins, row.losses),
+      melee: sourceRecord(row.wins, row.losses, row.draws),
+      endstep: sourceRecord(0, 0),
+      scope: "exact",
+      endstep_opponent_slug: null,
+      melee_opponent_slugs: [row._id],
+    });
+  }
+
+  for (const record of endstepRows) {
+    const match: Partial<EndstepMatchup> = record.match ?? {};
+    const endstepSlug = record.opponent_slug || match.opponent_slug;
+    if (!endstepSlug) continue;
+
+    const variants = ruleSlugsForEndstep(endstepSlug);
+    const exactSlug = variants.length === 1 ? variants[0] : null;
+    const key = exactSlug ? `exact:${exactSlug}` : `group:${endstepSlug}`;
+    const endstep = sourceRecord(match.wins ?? 0, match.losses ?? 0);
+    const existing = byKey.get(key);
+
+    if (existing) {
+      existing.wins += endstep.wins;
+      existing.losses += endstep.losses;
+      existing.matches += endstep.matches;
+      existing.endstep = endstep;
+      existing.endstep_opponent_slug = endstepSlug;
+      existing.win_rate = winRate(existing.wins, existing.losses);
+      if (exactSlug && !existing.melee_opponent_slugs.includes(exactSlug)) {
+        existing.melee_opponent_slugs.push(exactSlug);
+      }
+      continue;
+    }
+
+    byKey.set(key, {
+      opponent_slug: exactSlug ?? endstepSlug,
+      opponent_name:
+        match.opponent_name || exactSlug || endstepSlug,
+      wins: endstep.wins,
+      losses: endstep.losses,
+      draws: 0,
+      matches: endstep.matches,
+      win_rate: winRate(endstep.wins, endstep.losses),
+      melee: sourceRecord(0, 0),
+      endstep,
+      scope: exactSlug ? "exact" : "group",
+      endstep_opponent_slug: endstepSlug,
+      melee_opponent_slugs: exactSlug ? [exactSlug] : [],
+    });
+  }
+
+  return [...byKey.values()].sort(
+    (a, b) =>
+      b.matches - a.matches ||
+      a.opponent_name.localeCompare(b.opponent_name),
+  );
 }

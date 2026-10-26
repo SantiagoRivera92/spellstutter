@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { SetupNotice } from "@/components/setup-notice";
 import { getSession } from "@/lib/auth/session";
 import { isMongoConfigured } from "@/lib/env";
-import { getArchetypeMatchups } from "@/lib/metagame/queries";
+import { getCombinedArchetypeMatchups } from "@/lib/metagame/queries";
 import { archetypeName } from "@/lib/metagame/archetypes";
 import { buttonVariants } from "@/components/ui/button";
 
@@ -53,7 +53,7 @@ export default async function MatchupsPage({
     );
   }
 
-  const matchups = await getArchetypeMatchups(slug, 30).catch(() => []);
+  const matchups = await getCombinedArchetypeMatchups(slug, 30).catch(() => []);
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
@@ -73,15 +73,16 @@ export default async function MatchupsPage({
 
       <PageHeader
         title={`Matchups - ${archetypeName(slug)}`}
-        description={`Head-to-head win rates against other archetypes (last 30 days).`}
+        description={`Head-to-head win rates from Melee pairings and endstep (last 30 days).`}
       />
 
       {matchups.length === 0 ? (
         <div className="mt-8 text-center text-muted-foreground">
           <p>No matchup data available yet.</p>
           <p className="mt-2 text-sm">
-            Run <code className="font-mono">pnpm sync:endstep</code> to populate
-            endstep metagame data.
+            Run <code className="font-mono">pnpm sync:melee</code> and{" "}
+            <code className="font-mono">pnpm sync:endstep</code> to populate
+            matchup data.
           </p>
         </div>
       ) : (
@@ -92,38 +93,55 @@ export default async function MatchupsPage({
               <thead className="sticky top-0 bg-muted">
                 <tr className="border-bottom border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
                   <th scope="col" className="px-3 py-2 font-medium">Opponent</th>
+                  <th scope="col" className="px-3 py-2 font-medium">Scope</th>
+                  <th scope="col" className="px-3 py-2 text-right font-medium">Melee</th>
+                  <th scope="col" className="px-3 py-2 text-right font-medium">Endstep</th>
                   <th scope="col" className="px-3 py-2 text-right font-medium">Matches</th>
                   <th scope="col" className="px-3 py-2 text-right font-medium">Win rate</th>
                   <th scope="col" className="px-3 py-2 text-right font-medium">Record</th>
-                  <th scope="col" className="px-3 py-2 text-right font-medium">Deff</th>
                 </tr>
               </thead>
               <tbody>
                 {matchups.map((record) => {
-                  const m = record.match;
-                  const total = m.wins + m.losses;
-                  const winPct = total > 0 ? (m.wins / total) * 100 : 0;
-                  const opponentName =
-                    m.opponent_name || m.opponent_slug || m.opponent_id;
+                  const winPct =
+                    record.win_rate != null ? record.win_rate * 100 : 0;
+                  const opponentName = record.opponent_name || record.opponent_slug;
+                  const meleeLabel = record.melee.matches
+                    ? `${record.melee.wins}-${record.melee.losses}${
+                        record.melee.draws ? `-${record.melee.draws}` : ""
+                      }`
+                    : "—";
+                  const endstepLabel = record.endstep.matches
+                    ? `${record.endstep.wins}-${record.endstep.losses}`
+                    : "—";
+                  const recordLabel = `${record.wins}-${record.losses}${
+                    record.draws ? `-${record.draws}` : ""
+                  }`;
                   return (
                     <tr
-                      key={m.opponent_slug || m.opponent_id || opponentName}
+                      key={`${record.scope}-${record.opponent_slug}`}
                       className="border-bottom border-border/60 last:border-0 hover:bg-muted/30"
                     >
                       <td className="px-3 py-1.5 font-medium">
                         {opponentName}
                       </td>
+                      <td className="px-3 py-1.5 text-xs text-muted-foreground">
+                        {record.scope === "group" ? "endstep group" : "exact"}
+                      </td>
                       <td className="px-3 py-1.5 text-right numeric">
-                        {m.matches}
+                        {meleeLabel}
+                      </td>
+                      <td className="px-3 py-1.5 text-right numeric">
+                        {endstepLabel}
+                      </td>
+                      <td className="px-3 py-1.5 text-right numeric">
+                        {record.matches}
                       </td>
                       <td className="px-3 py-1.5 text-right numeric">
                         {winPct.toFixed(1)}%
                       </td>
                       <td className="px-3 py-1.5 text-right numeric">
-                        {`${m.wins}-${m.losses}`}
-                      </td>
-                      <td className="px-3 py-1.5 text-right numeric">
-                        {m.deff != null ? m.deff.toFixed(2) : "—"}
+                        {recordLabel}
                       </td>
                     </tr>
                   );
@@ -133,8 +151,11 @@ export default async function MatchupsPage({
           </div>
 
           <div className="mt-4 text-sm text-muted-foreground">
-            <p>Window: {matchups[0]?.window ?? "30d"} | Population: {matchups[0]?.population ?? "rated"}</p>
-            <p>Data refreshed: {matchups[0]?.fetched_at ? new Date(matchups[0].fetched_at).toLocaleDateString() : "—"}</p>
+            <p>Window: 30d | Sources: Melee pairings + endstep matchups</p>
+            <p>
+              Melee rows use exact archetype slugs. “endstep group” rows cannot
+              be split into individual variants.
+            </p>
           </div>
         </section>
       )}

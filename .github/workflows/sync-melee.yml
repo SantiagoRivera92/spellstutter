@@ -1,0 +1,63 @@
+name: Sync Melee Pauper events
+
+on:
+  schedule:
+    # Daily at 07:13 UTC — Melee paper events finish throughout the day. Stored
+    # events are skipped, so each run only adds what is new.
+    - cron: "13 7 * * *"
+  workflow_dispatch:
+    inputs:
+      month:
+        description: Month to scrape, YYYY-MM (defaults to current UTC month)
+        required: false
+      min_players:
+        description: Minimum player count (defaults to 16)
+        required: false
+      limit:
+        description: Maximum events to process (defaults to all)
+        required: false
+      force:
+        description: Re-import events already stored
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync-melee
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    environment: spellstutter
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Scrape Melee Pauper events to MongoDB
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          MONGODB_DB: ${{ vars.MONGODB_DB || 'spellstutter' }}
+        run: |
+          ARGS=""
+          if [ -n "${{ inputs.month }}" ]; then ARGS="$ARGS --month=${{ inputs.month }}"; fi
+          if [ -n "${{ inputs.min_players }}" ]; then ARGS="$ARGS --min-players=${{ inputs.min_players }}"; fi
+          if [ -n "${{ inputs.limit }}" ]; then ARGS="$ARGS --limit=${{ inputs.limit }}"; fi
+          if [ "${{ inputs.force }}" = "true" ]; then ARGS="$ARGS --force"; fi
+          # Catch events that finished after the last daily run of the previous month.
+          if [ -z "${{ inputs.month }}" ] && [ "$(date -u +%d)" = "01" ]; then
+            PREVIOUS_MONTH=$(date -u -d '1 month ago' +%Y-%m)
+            pnpm sync:melee -- --month="$PREVIOUS_MONTH" $ARGS
+          fi
+          pnpm sync:melee -- $ARGS

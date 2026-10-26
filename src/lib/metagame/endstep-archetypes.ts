@@ -102,7 +102,23 @@ export const ENDSTEP_ARCHETYPE_BY_RULE: Record<string, string> = {
   dredge: "dredge-da95b296",
 };
 
+const RULE_SLUGS_BY_ENDSTEP = new Map<string, string[]>();
+for (const [ruleSlug, endstepSlug] of Object.entries(ENDSTEP_ARCHETYPE_BY_RULE)) {
+  const current = RULE_SLUGS_BY_ENDSTEP.get(endstepSlug) ?? [];
+  current.push(ruleSlug);
+  RULE_SLUGS_BY_ENDSTEP.set(endstepSlug, current);
+}
+
 /** The endstep.cc archetype slug for one of this app's archetype slugs. */
 export function endstepSlugForRule(ruleSlug: string): string | null {
   return ENDSTEP_ARCHETYPE_BY_RULE[ruleSlug] ?? null;
+}
+
+/**
+ * Every app archetype slug that endstep folds into one endstep slug.
+ * A single result means the join is exact; more than one means the endstep
+ * row is group-level and cannot be split back into app variants.
+ */
+export function ruleSlugsForEndstep(endstepSlug: string): string[] {
+  return RULE_SLUGS_BY_ENDSTEP.get(endstepSlug) ?? [];
 }

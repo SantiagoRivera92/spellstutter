@@ -1,0 +1,3 @@
+# Copy to `.dev.vars` for `pnpm preview` (Wrangler local runtime).
+# `next dev` continues to use `.env.local`.
+NEXTJS_ENV=development

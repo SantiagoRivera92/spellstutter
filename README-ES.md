@@ -193,10 +193,10 @@ opcionales como año/mes, formato, ventana y límites.
 | Comando | Propósito |
 | --- | --- |
 | `pnpm dev` | Inicia el servidor de desarrollo de Next.js |
-| `pnpm build` / `pnpm start` | Build / servir en producción |
+| `pnpm build` / `pnpm start` | Build de producción (ejecuta los tests primero) / servir |
 | `pnpm lint` | ESLint |
 | `pnpm typecheck` | `tsc --noEmit` |
-| `pnpm test` | Tests unitarios (reglas de arquetipos, tipos de carta, sintaxis de búsqueda, redirecciones de auth, rate limiting, estadísticas de enfrentamientos) |
+| `pnpm test` | Tests unitarios e integraciones con Mongo |
 | `pnpm sync:cards` | Scryfall → Mongo |
 | `pnpm sync:metagame` | MTGO → Mongo |
 | `pnpm sync:reclassify` | Reaplica las reglas de arquetipos a los mazos guardados (sin red) |
@@ -358,6 +358,27 @@ contenedores).
 4. Apunta la app a un MongoDB (Atlas) y un proyecto de Supabase de producción.
 5. Deja que los workflows programados mantengan el catálogo y el metagame al día,
    o ejecuta los comandos de sincronización desde tu propio scheduler.
+
+### Cloudflare Workers
+
+El repositorio incluye `wrangler.jsonc` y `open-next.config.ts` para
+[`@opennextjs/cloudflare`](https://opennext.js.org/cloudflare). En el panel de
+Cloudflare, abre **Workers & Pages → spellstutter → Settings → Builds** y define:
+
+- **Build command:** `pnpm run cf:build`
+- **Deploy command:** `npx wrangler deploy`
+
+Añade las variables y secretos de ejecución de `.env.example` en
+**Settings → Variables & Secrets**. En producción son obligatorias
+`MONGODB_URI`, `MONGODB_DB`, `NEXT_PUBLIC_SUPABASE_URL`,
+`NEXT_PUBLIC_SUPABASE_ANON_KEY` y `NEXT_PUBLIC_SITE_URL`.
+
+`pnpm cf:build` ejecuta primero los tests (a través de `pnpm build`) y después
+genera el bundle del Worker. En local, `pnpm preview` compila y ejecuta el Worker
+en el runtime local `workerd` (copia `.dev.vars.example` a `.dev.vars` primero), y `pnpm deploy`
+compila y despliega desde la línea de comandos. El cliente de MongoDB tiene
+alcance de petición en Workers porque el runtime no puede reutilizar un objeto
+de E/S entre peticiones.
 
 ## Contribuir
 

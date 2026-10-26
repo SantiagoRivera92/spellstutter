@@ -23,7 +23,10 @@ function orderIdentity(colors: CardColor[]): CardColor[] {
   return COLOR_ORDER.filter((color) => colors.includes(color));
 }
 
-function buildTree(folders: Folder[], deckCounts: Map<string, number>): FolderNode[] {
+export function buildTree(
+  folders: Folder[],
+  deckCounts: Map<string, number>,
+): FolderNode[] {
   const nodes = new Map<string, FolderNode>();
   for (const folder of folders) {
     nodes.set(folder.id, {

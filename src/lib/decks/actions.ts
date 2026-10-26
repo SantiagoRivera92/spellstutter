@@ -16,7 +16,6 @@ import {
   getMetagameDeck,
 } from "@/lib/metagame/queries";
 import { getEndstepArchetype } from "@/lib/metagame/endstep";
-import type { MetagameDeck } from "@/lib/metagame/types";
 import { getSession, type Session } from "@/lib/auth/session";
 import { isMongoConfigured } from "@/lib/env";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -26,6 +25,8 @@ import type {
   DeckCard,
   DeckVisibility,
 } from "@/lib/supabase/types";
+import { buildCloneRows } from "./clone";
+import { parseDecklist } from "./parse-decklist";
 
 export interface ImportReport {
   added: number;
@@ -290,51 +291,6 @@ export async function createDeckFromArchetype(input: {
 
   revalidateDeck(deckId);
   return { ok: true, deckId };
-}
-
-interface CloneRow {
-  deck_id: string;
-  oracle_id: string;
-  printing_id: string | null;
-  card_name: string;
-  quantity: number;
-  board: DeckBoard;
-}
-
-function buildCloneRows(
-  source: MetagameDeck,
-  deckId: string,
-): { rows: CloneRow[]; skipped: string[] } {
-  const skipped: string[] = [];
-  const rows: CloneRow[] = [];
-
-  const addBoard = (entries: MetagameDeck["mainboard"], board: DeckBoard) => {
-    const byOracle = new Map<string, CloneRow>();
-    for (const entry of entries ?? []) {
-      if (!entry.oracle_id) {
-        if (!skipped.includes(entry.name)) skipped.push(entry.name);
-        continue;
-      }
-      const existing = byOracle.get(entry.oracle_id);
-      if (existing) {
-        existing.quantity = Math.min(999, existing.quantity + entry.quantity);
-      } else {
-        byOracle.set(entry.oracle_id, {
-          deck_id: deckId,
-          oracle_id: entry.oracle_id,
-          printing_id: entry.printing_id ?? null,
-          card_name: entry.name,
-          quantity: Math.min(999, entry.quantity),
-          board,
-        });
-      }
-    }
-    rows.push(...byOracle.values());
-  };
-
-  addBoard(source.mainboard, "main");
-  addBoard(source.sideboard, "side");
-  return { rows, skipped };
 }
 
 /**
@@ -633,18 +589,6 @@ export async function removeDeckCard(input: {
   return { ok: true };
 }
 
-/** Matches "4 Card", "4x Card", and "SB: 4 Card" (sideboard prefix). */
-const LINE_PATTERN = /^(?:(SB):\s*)?(\d+)x?\s+(.+)$/i;
-
-function cleanCardName(raw: string): string {
-  let name = raw.trim();
-  name = name.replace(/^SB:\s*/i, "");
-  name = name.replace(/\s+\*[A-Z]+\*/g, "");
-  name = name.replace(/\s+#\S+/g, "");
-  name = name.replace(/\s+\([A-Z0-9_]+\)\s*[A-Z0-9-]*\s*$/i, "");
-  return name.trim();
-}
-
 export async function importDecklist(input: {
   deckId: string;
   text: string;
@@ -663,36 +607,7 @@ export async function importDecklist(input: {
     return { ok: false, error: "list_too_long" };
   }
 
-  const defaultBoard = input.board ?? "main";
-  const lines = input.text.split(/\r?\n/);
-  const entries: { quantity: number; name: string; board: DeckBoard }[] = [];
-  let currentBoard: DeckBoard = defaultBoard;
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("//")) continue;
-    if (/^(sideboard|side board)$/i.test(trimmed)) {
-      currentBoard = "side";
-      continue;
-    }
-    if (/^(mainboard|main|deck)$/i.test(trimmed)) {
-      currentBoard = defaultBoard;
-      continue;
-    }
-    const match = trimmed.match(LINE_PATTERN);
-    if (!match) continue;
-    const quantity = Number.parseInt(match[2], 10);
-    if (!Number.isFinite(quantity) || quantity <= 0) continue;
-    const name = cleanCardName(match[3]);
-    if (name) {
-      entries.push({
-        quantity,
-        name,
-        board: match[1] ? "side" : currentBoard,
-      });
-    }
-  }
-
+  const entries = parseDecklist(input.text, input.board ?? "main");
   if (!entries.length) return { ok: false, error: "empty_list" };
 
   const uniqueNames = [...new Set(entries.map((entry) => entry.name))];

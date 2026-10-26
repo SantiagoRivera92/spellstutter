@@ -7,7 +7,7 @@ export const CLASSIFICATION_VERSION = "pauper-heuristics-v5";
  * Cards that should not contribute to a deck's archetype color identity even
  * though they have colored pips. Sneaky Snacker is a free discard payoff that
  * shows up in otherwise-mono-red Madness decks; without this, every Mono-Red
- * Madness list reads as U/B.
+ * Madness list reads as Grixis.
  */
 export const IDENTITY_EXEMPT_CARDS = new Set([
   // Free discard payoff played in otherwise mono-red Madness decks.

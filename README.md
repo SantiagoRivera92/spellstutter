@@ -190,10 +190,10 @@ year/month, format, window, and limits.
 | Command | Purpose |
 | --- | --- |
 | `pnpm dev` | Start the Next.js dev server |
-| `pnpm build` / `pnpm start` | Production build / serve |
+| `pnpm build` / `pnpm start` | Production build (runs the test suite first) / serve |
 | `pnpm lint` | ESLint |
 | `pnpm typecheck` | `tsc --noEmit` |
-| `pnpm test` | Unit tests (archetype rules, card types, search syntax, auth redirects, rate limiting, matchup stats) |
+| `pnpm test` | Unit and Mongo-backed integration tests |
 | `pnpm sync:cards` | Scryfall → Mongo |
 | `pnpm sync:metagame` | MTGO → Mongo |
 | `pnpm sync:reclassify` | Re-apply archetype rules to stored decks (no network) |
@@ -343,6 +343,27 @@ supports Next.js 16 (for example Vercel or a container platform).
 4. Point the app at a production MongoDB (Atlas) and Supabase project.
 5. Let the scheduled workflows keep the catalog and metagame fresh, or run the
    sync commands from your own scheduler.
+
+### Cloudflare Workers
+
+The repository includes `wrangler.jsonc` and `open-next.config.ts` for
+[`@opennextjs/cloudflare`](https://opennext.js.org/cloudflare). In the
+Cloudflare dashboard, open **Workers & Pages → spellstutter → Settings → Builds**
+and set:
+
+- **Build command:** `pnpm run cf:build`
+- **Deploy command:** `npx wrangler deploy`
+
+Add the runtime variables and secrets from `.env.example` under
+**Settings → Variables & Secrets**. `MONGODB_URI`, `MONGODB_DB`,
+`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and
+`NEXT_PUBLIC_SITE_URL` are required in production.
+
+`pnpm cf:build` runs the test suite first (through `pnpm build`) and then
+produces the Worker bundle. Locally, `pnpm preview` builds and runs the Worker in
+the local `workerd` runtime (copy `.dev.vars.example` to `.dev.vars` first), and `pnpm deploy`
+builds and deploys from the command line. The MongoDB client is request-scoped
+on Workers because the runtime cannot reuse an I/O object across requests.
 
 ## Contributing
 

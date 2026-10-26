@@ -48,3 +48,60 @@ test("a value-less filter falls back to a name term", () => {
 test("isQueryEmpty is true for whitespace-only input", () => {
   assert.equal(isQueryEmpty(parseQuery("   ")), true);
 });
+
+test("parses every mana-value comparison operator", () => {
+  assert.equal(parseQuery("cmc<3").cmcMax, 2.5);
+  assert.equal(parseQuery("cmc>3").cmcMin, 3.5);
+  assert.equal(parseQuery("mv=4").cmcMin, 4);
+  assert.equal(parseQuery("mv=4").cmcMax, 4);
+  assert.equal(parseQuery("mv<=3.5").cmcMax, 3.5);
+});
+
+test("supports quoted type and keyword filters", () => {
+  const parsed = parseQuery('t:"legendary creature" kw:flying');
+  assert.deepEqual(parsed.types, ["legendary creature"]);
+  assert.deepEqual(parsed.keywords, ["flying"]);
+});
+
+test("normalizes colors into WUBRG order and de-duplicates", () => {
+  const parsed = parseQuery("c:gur c:u id:wubrg");
+  assert.deepEqual(parsed.colors, ["U", "R", "G"]);
+  assert.deepEqual(parsed.colorIdentity, ["W", "U", "B", "R", "G"]);
+});
+
+test("reports unknown colors", () => {
+  const parsed = parseQuery("c:pink");
+  assert.deepEqual(parsed.colors, []);
+  assert.ok(parsed.errors.some((error) => error.includes("pink")));
+});
+
+test("ignores format filters that are implied by the catalog", () => {
+  const parsed = parseQuery("legal:pauper banned:legacy f:commander");
+  assert.deepEqual(parsed.nameTerms, []);
+  assert.equal(isQueryEmpty(parsed), true);
+});
+
+test("accepts mixed-case rarity filters", () => {
+  assert.deepEqual(parseQuery("r:MYTHIC").rarities, ["mythic"]);
+});
+
+test("collects multiple oracle terms", () => {
+  const parsed = parseQuery('o:"draw a card" o:flying');
+  assert.deepEqual(parsed.oracleTerms, ["draw a card", "flying"]);
+});
+
+test("isQueryEmpty is false for each filter category", () => {
+  for (const query of [
+    '!"Counterspell"',
+    "bolt",
+    "t:instant",
+    "o:flying",
+    "c:u",
+    "id:wu",
+    "kw:flying",
+    "r:common",
+    "cmc<=2",
+  ]) {
+    assert.equal(isQueryEmpty(parseQuery(query)), false, query);
+  }
+});

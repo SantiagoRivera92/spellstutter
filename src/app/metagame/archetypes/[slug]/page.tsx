@@ -60,8 +60,8 @@ export default async function ArchetypePage({
 
   const hasMatchups = matchups.length > 0;
 
-  // Prefer the combined Melee + endstep record; fall back to the MTGO-scraped
-  // wins/losses only when neither source has data for this archetype.
+  // Prefer the combined pairing record; fall back to the MTGO-scraped
+  // wins/losses only when no matchup source has data for this archetype.
   const record: ArchetypeRecord | null =
     combinedRecord ??
     (stat && stat.win_rate != null
@@ -79,22 +79,45 @@ export default async function ArchetypePage({
         record.draws ? `-${record.draws}` : ""
       }`
     : null;
-  const recordSource = record
+  const recordSourceLabels = record
     ? record.source === "combined"
-      ? "Melee + endstep · 30d"
+      ? [
+          record.melee && "Melee",
+          record.cardsrealm && "Cardsrealm",
+          record.endstep && "endstep",
+        ].filter((label): label is string => Boolean(label))
       : record.source === "melee"
-        ? "Melee · 30d"
-        : record.source === "endstep"
-          ? "endstep · 30d"
-          : "MTGO · 30d"
+        ? ["Melee"]
+        : record.source === "cardsrealm"
+          ? ["Cardsrealm"]
+          : record.source === "endstep"
+            ? ["endstep"]
+            : ["MTGO"]
+    : [];
+  const recordSource = record
+    ? `${recordSourceLabels.join(" + ")} · 30d`
     : undefined;
   const recordNoteParts: string[] = [];
-  if (record?.source === "combined" && record.melee && record.endstep) {
-    recordNoteParts.push(
-      `Melee ${record.melee.wins}-${record.melee.losses}${
-        record.melee.draws ? `-${record.melee.draws}` : ""
-      } · endstep ${record.endstep.wins}-${record.endstep.losses}`,
-    );
+  if (record?.source === "combined") {
+    if (record.melee) {
+      recordNoteParts.push(
+        `Melee ${record.melee.wins}-${record.melee.losses}${
+          record.melee.draws ? `-${record.melee.draws}` : ""
+        }`,
+      );
+    }
+    if (record.cardsrealm) {
+      recordNoteParts.push(
+        `Cardsrealm ${record.cardsrealm.wins}-${record.cardsrealm.losses}${
+          record.cardsrealm.draws ? `-${record.cardsrealm.draws}` : ""
+        }`,
+      );
+    }
+    if (record.endstep) {
+      recordNoteParts.push(
+        `endstep ${record.endstep.wins}-${record.endstep.losses}`,
+      );
+    }
   }
   if (
     record?.source === "combined" &&

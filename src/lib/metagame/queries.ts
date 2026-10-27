@@ -14,17 +14,23 @@ import type {
   MetagameSummary,
 } from "./types";
 import type {
+  CardsrealmMatchRecord,
   CombinedMatchup,
   EndstepMatchup,
   EndstepMatchupRecord,
+  MatchRecord,
   MatchupSourceRecord,
-  MeleeMatchRecord,
 } from "@/lib/metagame/types";
 import {
   ENDSTEP_ARCHETYPE_BY_RULE,
   endstepSlugForRule,
   ruleSlugsForEndstep,
 } from "./endstep-archetypes";
+import {
+  isSourceEnabled,
+  withDeckSources,
+  withEventSources,
+} from "./sources";
 
 // `_id` is an ObjectId (has toJSON) and cannot be passed from Server to Client
 // Components, so it is always projected out.
@@ -34,7 +40,21 @@ export async function listEvents(limit = 40): Promise<MetagameEvent[]> {
   const db = await getDb();
   return db
     .collection<MetagameEvent>(COLLECTIONS.events)
-    .find({}, WITHOUT_ID)
+    .find(withEventSources({}), WITHOUT_ID)
+    .sort({ date: -1, scraped_at: -1 })
+    .limit(limit)
+    .toArray();
+}
+
+/** The latest events with a field of at least 100 players. */
+export async function listBigEvents(limit = 3): Promise<MetagameEvent[]> {
+  const db = await getDb();
+  return db
+    .collection<MetagameEvent>(COLLECTIONS.events)
+    .find(
+      withEventSources({ player_count: { $gte: 100 } }),
+      WITHOUT_ID,
+    )
     .sort({ date: -1, scraped_at: -1 })
     .limit(limit)
     .toArray();
@@ -46,7 +66,7 @@ export async function getEvent(
   const db = await getDb();
   const event = await db
     .collection<MetagameEvent>(COLLECTIONS.events)
-    .findOne({ slug }, WITHOUT_ID);
+    .findOne(withEventSources({ slug }), WITHOUT_ID);
   if (!event) return null;
 
   const decks = await db
@@ -65,7 +85,7 @@ export async function listDecksByArchetype(
   const db = await getDb();
   return db
     .collection<MetagameDeck>(COLLECTIONS.decks)
-    .find({ "archetype.slug": slug }, WITHOUT_ID)
+    .find(withDeckSources({ "archetype.slug": slug }), WITHOUT_ID)
     .sort({ event_date: -1, rank: 1 })
     .limit(limit)
     .toArray();
@@ -77,7 +97,7 @@ export async function listArchetypes(): Promise<ArchetypeOption[]> {
   const rows = await db
     .collection<MetagameDeck>(COLLECTIONS.decks)
     .aggregate<{ _id: string; name: string; decks: number }>([
-      { $match: { event_date: { $gte: since } } },
+      { $match: withDeckSources({ event_date: { $gte: since } }) },
       {
         $group: {
           _id: "$archetype.slug",
@@ -99,7 +119,7 @@ export async function getMetagameDeck(
   const db = await getDb();
   return db
     .collection<MetagameDeck>(COLLECTIONS.decks)
-    .findOne({ event_slug: eventSlug, player }, WITHOUT_ID);
+    .findOne(withDeckSources({ event_slug: eventSlug, player }), WITHOUT_ID);
 }
 
 export interface ArchetypeOverview {
@@ -148,7 +168,7 @@ async function getArchetypeColors(
   const [byColor, totals] = await Promise.all([
     decks
       .aggregate<{ _id: { slug: string; color: CardColor }; qty: number }>([
-        { $match: { event_date: { $gte: since } } },
+        { $match: withDeckSources({ event_date: { $gte: since } }) },
         { $unwind: "$mainboard" },
         { $unwind: "$mainboard.colors" },
         {
@@ -161,7 +181,7 @@ async function getArchetypeColors(
       .toArray(),
     decks
       .aggregate<{ _id: string; total: number }>([
-        { $match: { event_date: { $gte: since } } },
+        { $match: withDeckSources({ event_date: { $gte: since } }) },
         { $unwind: "$mainboard" },
         {
           $group: {
@@ -206,10 +226,11 @@ async function getArchetypeColors(
  * endstep's metagame share per archetype, keyed by this app's archetype slug.
  *
  * endstep reports each archetype's share of the whole metagame, unlike the
- * MTGO-derived share which only covers lists that finished well. Only mapped
- * archetypes have a value here; callers fall back to the MTGO share otherwise.
+ * share derived from stored decklists. Only mapped archetypes have a value
+ * here; callers fall back to the decklist share otherwise.
  */
 export async function getEndstepShareByRule(): Promise<Map<string, number>> {
+  if (!isSourceEnabled("endstep")) return new Map();
   const db = await getDb();
   const rows = await db
     .collection<{ slug: string; share_rate: number | null }>(
@@ -246,7 +267,7 @@ export async function listArchetypeOverview(
         decks: number;
         ranks: (number | null)[];
       }>([
-        { $match: { event_date: { $gte: since } } },
+        { $match: withDeckSources({ event_date: { $gte: since } }) },
         {
           $group: {
             _id: "$archetype.slug",
@@ -266,7 +287,7 @@ export async function listArchetypeOverview(
         oracle_id: string | null;
         type_line: string | null;
       }>([
-        { $match: { event_date: { $gte: since } } },
+        { $match: withDeckSources({ event_date: { $gte: since } }) },
         { $unwind: "$mainboard" },
         {
           $group: {
@@ -381,7 +402,7 @@ export async function listArchetypeOverview(
         name: row.name,
         decks: row.decks,
         // Prefer endstep's share of the whole metagame; fall back to the share
-        // of the MTGO lists we scraped when this archetype has no mapping.
+        // of the stored decklists when this archetype has no mapping.
         share: endstepShares.get(row._id) ?? (total ? row.decks / total : 0),
         color_identity: archetypeColors.get(row._id) ?? [],
         average_rank: ranks.length
@@ -418,7 +439,12 @@ async function aggregateBoard(
   const rows = await db
     .collection<MetagameDeck>(COLLECTIONS.decks)
     .aggregate<CardAggRow>([
-      { $match: { "archetype.slug": slug, event_date: { $gte: since } } },
+      {
+        $match: withDeckSources({
+          "archetype.slug": slug,
+          event_date: { $gte: since },
+        }),
+      },
       { $unwind: `$${board}` },
       {
         $group: {
@@ -454,7 +480,10 @@ export async function getArchetypeBreakdown(
   const db = await getDb();
   const since = isoDateDaysAgo(days);
   const collection = db.collection<MetagameDeck>(COLLECTIONS.decks);
-  const match = { "archetype.slug": slug, event_date: { $gte: since } };
+  const match = withDeckSources({
+    "archetype.slug": slug,
+    event_date: { $gte: since },
+  });
 
   const totalDecks = await collection.countDocuments(match);
   if (!totalDecks) return null;
@@ -536,10 +565,10 @@ export async function getArchetypesForCard(
         total_qty: number;
       }>([
         {
-          $match: {
+          $match: withDeckSources({
             event_date: { $gte: since },
             "mainboard.oracle_id": oracleId,
-          },
+          }),
         },
         {
           $project: {
@@ -574,7 +603,7 @@ export async function getArchetypesForCard(
       .toArray(),
     collection
       .aggregate<{ _id: string; decks: number }>([
-        { $match: { event_date: { $gte: since } } },
+        { $match: withDeckSources({ event_date: { $gte: since } }) },
         { $group: { _id: "$archetype.slug", decks: { $sum: 1 } } },
       ])
       .toArray(),
@@ -609,7 +638,7 @@ export async function getMetagameSummary(
   const db = await getDb();
   const since = isoDateDaysAgo(days);
   const decks = db.collection<MetagameDeck>(COLLECTIONS.decks);
-  const match = { event_date: { $gte: since } };
+  const match = withDeckSources({ event_date: { $gte: since } });
   const archetypeColors = await getArchetypeColors(since);
 
   const [totals, cardRows, eventCount, deckCount] = await Promise.all([
@@ -645,7 +674,9 @@ export async function getMetagameSummary(
         { $sort: { count: -1 } },
       ])
       .toArray(),
-    db.collection(COLLECTIONS.events).countDocuments({ date: { $gte: since } }),
+    db
+      .collection(COLLECTIONS.events)
+      .countDocuments(withEventSources({ date: { $gte: since } })),
     decks.countDocuments(match),
   ]);
 
@@ -735,7 +766,7 @@ async function aggregateBoardStaples(
   return db
     .collection<MetagameDeck>(COLLECTIONS.decks)
     .aggregate<StapleAggRow>([
-      { $match: { event_date: { $gte: since } } },
+      { $match: withDeckSources({ event_date: { $gte: since } }) },
       { $unwind: `$${board}` },
       {
         $group: {
@@ -823,7 +854,7 @@ export async function listStaples(
   const db = await getDb();
   const totalDecks = await db
     .collection<MetagameDeck>(COLLECTIONS.decks)
-    .countDocuments({ event_date: { $gte: since } });
+    .countDocuments(withDeckSources({ event_date: { $gte: since } }));
 
   const [mainRows, sideRows] = await Promise.all([
     aggregateBoardStaples(since, "mainboard"),
@@ -871,7 +902,7 @@ export async function listStapleCategory(
   const db = await getDb();
   const totalDecks = await db
     .collection<MetagameDeck>(COLLECTIONS.decks)
-    .countDocuments({ event_date: { $gte: since } });
+    .countDocuments(withDeckSources({ event_date: { $gte: since } }));
 
   const board = category === "sideboard" ? "sideboard" : "mainboard";
   const rows = await aggregateBoardStaples(since, board);
@@ -898,7 +929,10 @@ export async function getArchetypeStat(
   const db = await getDb();
   const since = isoDateDaysAgo(days);
   const decks = db.collection<MetagameDeck>(COLLECTIONS.decks);
-  const match = { "archetype.slug": slug, event_date: { $gte: since } };
+  const match = withDeckSources({
+    "archetype.slug": slug,
+    event_date: { $gte: since },
+  });
 
   const [totals, cardRows, deckCount, archetypeColors] = await Promise.all([
     decks
@@ -930,7 +964,7 @@ export async function getArchetypeStat(
         { $limit: 5 },
       ])
       .toArray(),
-    decks.countDocuments({ event_date: { $gte: since } }),
+    decks.countDocuments(withDeckSources({ event_date: { $gte: since } })),
     getArchetypeColors(since),
   ]);
 
@@ -969,10 +1003,11 @@ export interface ArchetypeRecord {
   losses: number;
   matches: number;
   win_rate: number | null;
-  source: "endstep" | "mtgo" | "melee" | "combined";
+  source: "endstep" | "mtgo" | "melee" | "cardsrealm" | "combined";
   draws?: number;
   byes?: number;
   melee?: MatchupSourceRecord;
+  cardsrealm?: MatchupSourceRecord;
   endstep?: MatchupSourceRecord;
   endstep_group_slug?: string | null;
   endstep_group_variants?: number;
@@ -988,6 +1023,7 @@ export async function getArchetypeMatchups(
   slug: string,
   days = 30,
 ): Promise<EndstepMatchupRecord[]> {
+  if (!isSourceEnabled("endstep")) return [];
   const endstepArchetype = endstepSlug(slug);
   if (!endstepArchetype) return [];
   const db = await getDb();
@@ -1013,6 +1049,7 @@ export async function getEndstepArchetypeRecord(
   slug: string,
   days = 30,
 ): Promise<ArchetypeRecord | null> {
+  if (!isSourceEnabled("endstep")) return null;
   const endstepArchetype = endstepSlug(slug);
   if (!endstepArchetype) return null;
 
@@ -1076,6 +1113,7 @@ export async function getMeleeArchetypeRecord(
   slug: string,
   days = 30,
 ): Promise<ArchetypeRecord | null> {
+  if (!isSourceEnabled("melee")) return null;
   const db = await getDb();
   const since = isoDateDaysAgo(days);
   const [row] = await db
@@ -1125,9 +1163,75 @@ export async function getMeleeArchetypeRecord(
 }
 
 /**
- * Combined record from Melee pairings and endstep matchups.
+ * Win/loss record from Cardsrealm standings pairings only.
  *
- * Melee is exact for the requested app archetype. endstep may be group-level
+ * Cardsrealm publishes each round's pairings as HTML; the sync stores one row
+ * per player per match, so this is exact for the requested app archetype.
+ */
+export async function getCardsrealmArchetypeRecord(
+  slug: string,
+  days = 30,
+): Promise<ArchetypeRecord | null> {
+  if (!isSourceEnabled("cardsrealm")) return null;
+  const db = await getDb();
+  const since = isoDateDaysAgo(days);
+  const [row] = await db
+    .collection<CardsrealmMatchRecord>(COLLECTIONS.cardsrealmMatches)
+    .aggregate<{
+      wins: number;
+      losses: number;
+      draws: number;
+      byes: number;
+      decks: number;
+    }>([
+      {
+        $match: {
+          "player_archetype.slug": slug,
+          event_date: { $gte: since },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          wins: {
+            $sum: { $cond: [{ $eq: ["$result", "win"] }, 1, 0] },
+          },
+          losses: {
+            $sum: { $cond: [{ $eq: ["$result", "loss"] }, 1, 0] },
+          },
+          draws: {
+            $sum: { $cond: [{ $eq: ["$result", "draw"] }, 1, 0] },
+          },
+          byes: {
+            $sum: { $cond: [{ $eq: ["$result", "bye"] }, 1, 0] },
+          },
+          decks: { $sum: 1 },
+        },
+      },
+    ])
+    .toArray();
+  if (!row || row.decks === 0) return null;
+
+  const wins = row.wins ?? 0;
+  const losses = row.losses ?? 0;
+  const draws = row.draws ?? 0;
+  const byes = row.byes ?? 0;
+  return {
+    wins,
+    losses,
+    matches: wins + losses + draws,
+    win_rate: winRate(wins, losses),
+    source: "cardsrealm",
+    draws,
+    byes,
+    cardsrealm: sourceRecord(wins, losses, draws),
+  };
+}
+
+/**
+ * Combined record from Melee and Cardsrealm pairings plus endstep matchups.
+ *
+ * Melee and Cardsrealm are exact for the requested app archetype. endstep may be group-level
  * when several app variants share one endstep slug; the returned
  * `endstep_group_slug` / `endstep_group_variants` fields expose that.
  */
@@ -1135,39 +1239,51 @@ export async function getCombinedArchetypeRecord(
   slug: string,
   days = 30,
 ): Promise<ArchetypeRecord | null> {
-  const [melee, endstep] = await Promise.all([
+  const [melee, cardsrealm, endstep] = await Promise.all([
     getMeleeArchetypeRecord(slug, days),
+    getCardsrealmArchetypeRecord(slug, days),
     getEndstepArchetypeRecord(slug, days),
   ]);
 
-  if (!melee && !endstep) return null;
-  if (!melee) return endstep;
-  if (!endstep) return melee;
+  const records = [melee, cardsrealm, endstep].filter(
+    (record): record is ArchetypeRecord => record != null,
+  );
+  if (!records.length) return null;
+  if (records.length === 1) return records[0];
 
-  const wins = melee.wins + endstep.wins;
-  const losses = melee.losses + endstep.losses;
-  const endstepGroup = endstepSlug(slug);
+  const wins = records.reduce((sum, record) => sum + record.wins, 0);
+  const losses = records.reduce((sum, record) => sum + record.losses, 0);
+  const draws = records.reduce((sum, record) => sum + (record.draws ?? 0), 0);
+  const byes = records.reduce((sum, record) => sum + (record.byes ?? 0), 0);
+  const endstepGroup = endstep ? endstepSlug(slug) : null;
   const variants = endstepGroup ? ruleSlugsForEndstep(endstepGroup) : [];
 
   return {
     wins,
     losses,
-    matches: wins + losses + (melee.draws ?? 0),
+    matches: wins + losses + draws,
     win_rate: winRate(wins, losses),
     source: "combined",
-    draws: melee.draws ?? 0,
-    byes: melee.byes ?? 0,
-    melee:
-      melee.melee ?? sourceRecord(melee.wins, melee.losses, melee.draws ?? 0),
-    endstep:
-      endstep.endstep ??
-      sourceRecord(endstep.wins, endstep.losses, endstep.draws ?? 0),
+    draws,
+    byes,
+    melee: melee
+      ? (melee.melee ??
+        sourceRecord(melee.wins, melee.losses, melee.draws ?? 0))
+      : undefined,
+    cardsrealm: cardsrealm
+      ? (cardsrealm.cardsrealm ??
+        sourceRecord(cardsrealm.wins, cardsrealm.losses, cardsrealm.draws ?? 0))
+      : undefined,
+    endstep: endstep
+      ? (endstep.endstep ??
+        sourceRecord(endstep.wins, endstep.losses, endstep.draws ?? 0))
+      : undefined,
     endstep_group_slug: endstepGroup,
     endstep_group_variants: variants.length,
   };
 }
 
-interface MeleeMatchupAggregate {
+interface MatchupAggregate {
   _id: string;
   name: string;
   wins: number;
@@ -1176,12 +1292,74 @@ interface MeleeMatchupAggregate {
   matches: number;
 }
 
+async function aggregateMatchupRows(
+  db: Awaited<ReturnType<typeof getDb>>,
+  collection: string,
+  slug: string,
+  since: string,
+): Promise<MatchupAggregate[]> {
+  return db
+    .collection<MatchRecord>(collection)
+    .aggregate<MatchupAggregate>([
+      {
+        $match: {
+          "player_archetype.slug": slug,
+          event_date: { $gte: since },
+          result: { $in: ["win", "loss", "draw"] },
+          "opponent_archetype.slug": { $type: "string" },
+        },
+      },
+      {
+        $group: {
+          _id: "$opponent_archetype.slug",
+          name: { $first: "$opponent_archetype.name" },
+          wins: {
+            $sum: { $cond: [{ $eq: ["$result", "win"] }, 1, 0] },
+          },
+          losses: {
+            $sum: { $cond: [{ $eq: ["$result", "loss"] }, 1, 0] },
+          },
+          draws: {
+            $sum: { $cond: [{ $eq: ["$result", "draw"] }, 1, 0] },
+          },
+          matches: { $sum: 1 },
+        },
+      },
+    ])
+    .toArray();
+}
+
+function exactMatchupRow(
+  row: MatchupAggregate,
+  source: "melee" | "cardsrealm",
+): CombinedMatchup {
+  const sourceRecordValue = sourceRecord(row.wins, row.losses, row.draws);
+  return {
+    opponent_slug: row._id,
+    opponent_name: row.name,
+    wins: row.wins,
+    losses: row.losses,
+    draws: row.draws,
+    matches: row.matches,
+    win_rate: winRate(row.wins, row.losses),
+    melee: source === "melee" ? sourceRecordValue : sourceRecord(0, 0),
+    cardsrealm:
+      source === "cardsrealm" ? sourceRecordValue : sourceRecord(0, 0),
+    endstep: sourceRecord(0, 0),
+    scope: "exact",
+    endstep_opponent_slug: null,
+    melee_opponent_slugs: source === "melee" ? [row._id] : [],
+  };
+}
+
 /**
- * Matchup rows combining exact Melee archetypes with endstep data.
+ * Matchup rows combining exact Melee and Cardsrealm archetypes with endstep
+ * data when that source is enabled.
  *
- * Melee rows always use exact app slugs. endstep rows stay at endstep's
- * granularity: if an endstep slug maps to exactly one app archetype, it merges
- * into that exact row; otherwise it remains a separate `scope: "group"` row.
+ * Melee and Cardsrealm rows always use exact app slugs. endstep rows stay at
+ * endstep's granularity: if an endstep slug maps to exactly one app archetype,
+ * it merges into that exact row; otherwise it remains a separate `scope:
+ * "group"` row.
  */
 export async function getCombinedArchetypeMatchups(
   slug: string,
@@ -1189,55 +1367,34 @@ export async function getCombinedArchetypeMatchups(
 ): Promise<CombinedMatchup[]> {
   const db = await getDb();
   const since = isoDateDaysAgo(days);
-  const [meleeRows, endstepRows] = await Promise.all([
-    db
-      .collection<MeleeMatchRecord>(COLLECTIONS.meleeMatches)
-      .aggregate<MeleeMatchupAggregate>([
-        {
-          $match: {
-            "player_archetype.slug": slug,
-            event_date: { $gte: since },
-            result: { $in: ["win", "loss", "draw"] },
-            "opponent_archetype.slug": { $type: "string" },
-          },
-        },
-        {
-          $group: {
-            _id: "$opponent_archetype.slug",
-            name: { $first: "$opponent_archetype.name" },
-            wins: {
-              $sum: { $cond: [{ $eq: ["$result", "win"] }, 1, 0] },
-            },
-            losses: {
-              $sum: { $cond: [{ $eq: ["$result", "loss"] }, 1, 0] },
-            },
-            draws: {
-              $sum: { $cond: [{ $eq: ["$result", "draw"] }, 1, 0] },
-            },
-            matches: { $sum: 1 },
-          },
-        },
-      ])
-      .toArray(),
+  const [meleeRows, cardsrealmRows, endstepRows] = await Promise.all([
+    isSourceEnabled("melee")
+      ? aggregateMatchupRows(db, COLLECTIONS.meleeMatches, slug, since)
+      : Promise.resolve([]),
+    isSourceEnabled("cardsrealm")
+      ? aggregateMatchupRows(db, COLLECTIONS.cardsrealmMatches, slug, since)
+      : Promise.resolve([]),
     getArchetypeMatchups(slug, days),
   ]);
 
   const byKey = new Map<string, CombinedMatchup>();
   for (const row of meleeRows) {
-    byKey.set(`exact:${row._id}`, {
-      opponent_slug: row._id,
-      opponent_name: row.name,
-      wins: row.wins,
-      losses: row.losses,
-      draws: row.draws,
-      matches: row.matches,
-      win_rate: winRate(row.wins, row.losses),
-      melee: sourceRecord(row.wins, row.losses, row.draws),
-      endstep: sourceRecord(0, 0),
-      scope: "exact",
-      endstep_opponent_slug: null,
-      melee_opponent_slugs: [row._id],
-    });
+    byKey.set(`exact:${row._id}`, exactMatchupRow(row, "melee"));
+  }
+
+  for (const row of cardsrealmRows) {
+    const key = `exact:${row._id}`;
+    const existing = byKey.get(key);
+    if (existing) {
+      existing.wins += row.wins;
+      existing.losses += row.losses;
+      existing.draws += row.draws;
+      existing.matches += row.matches;
+      existing.cardsrealm = sourceRecord(row.wins, row.losses, row.draws);
+      existing.win_rate = winRate(existing.wins, existing.losses);
+      continue;
+    }
+    byKey.set(key, exactMatchupRow(row, "cardsrealm"));
   }
 
   for (const record of endstepRows) {
@@ -1266,14 +1423,14 @@ export async function getCombinedArchetypeMatchups(
 
     byKey.set(key, {
       opponent_slug: exactSlug ?? endstepSlug,
-      opponent_name:
-        match.opponent_name || exactSlug || endstepSlug,
+      opponent_name: match.opponent_name || exactSlug || endstepSlug,
       wins: endstep.wins,
       losses: endstep.losses,
       draws: 0,
       matches: endstep.matches,
       win_rate: winRate(endstep.wins, endstep.losses),
       melee: sourceRecord(0, 0),
+      cardsrealm: sourceRecord(0, 0),
       endstep,
       scope: exactSlug ? "exact" : "group",
       endstep_opponent_slug: endstepSlug,

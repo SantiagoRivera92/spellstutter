@@ -12,6 +12,7 @@ import {
 import { isMongoConfigured, isSupabaseConfigured } from "@/lib/env";
 import {
   listArchetypeOverview,
+  listBigEvents,
   listEvents,
   type ArchetypeOverview,
 } from "@/lib/metagame/queries";
@@ -24,14 +25,16 @@ export default async function HomePage() {
   const mongo = isMongoConfigured();
   const supabase = isSupabaseConfigured();
 
-  const [art, archetypes, events, decks] = await Promise.all([
+  const [art, archetypes, bigEvents, events, decks] = await Promise.all([
     mongo ? getCardArtByName("Spellstutter Sprite").catch(() => null) : null,
     mongo ? listArchetypeOverview(30).catch(() => []) : Promise.resolve([]),
+    mongo ? listBigEvents(3).catch(() => []) : Promise.resolve([]),
     mongo ? listEvents(6).catch(() => []) : Promise.resolve([]),
     supabase ? getPublicDecks(4).catch(() => []) : Promise.resolve([]),
   ]);
 
   const featured: ArchetypeOverview[] = archetypes.slice(0, 6);
+  const latestBigEvents: MetagameEvent[] = bigEvents;
   const recentEvents: MetagameEvent[] = events;
   const freshDecks: PublicDeckSummary[] = decks;
 
@@ -49,6 +52,39 @@ export default async function HomePage() {
         <div className="mt-4">
           <ArchetypeGrid archetypes={featured} />
         </div>
+      </section>
+
+      <section aria-labelledby="big-events">
+        <SectionHeading
+          id="big-events"
+          title="Most recent big events"
+          href="/events"
+          linkLabel="All events"
+        />
+        {latestBigEvents.length ? (
+          <ul className="mt-4 grid gap-3 sm:grid-cols-3">
+            {latestBigEvents.map((event) => (
+              <li key={event.slug}>
+                <Link
+                  href={`/events/${event.slug}`}
+                  className="flex h-full flex-col justify-between gap-3 rounded-xl border border-border bg-panel px-4 py-3 transition-colors duration-150 hover:bg-muted/60"
+                >
+                  <span className="text-sm font-medium">{event.name}</span>
+                  <span className="flex items-baseline justify-between gap-2 text-xs text-muted-foreground">
+                    <span className="capitalize">
+                      {event.event_type} · {formatDate(event.date)}
+                    </span>
+                    <span className="numeric whitespace-nowrap">
+                      {event.player_count} players
+                    </span>
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <Placeholder text="No 100+ player events stored yet." />
+        )}
       </section>
 
       <section className="grid gap-8 lg:grid-cols-2">

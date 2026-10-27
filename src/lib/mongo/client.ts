@@ -94,6 +94,7 @@ export const COLLECTIONS = {
   events: "metagame_events",
   decks: "metagame_decks",
   meleeMatches: "melee_matches",
+  cardsrealmMatches: "cardsrealm_matches",
   endstepArchetypes: "endstep_archetypes",
   endstepMatchups: "endstep_matchups",
   syncRuns: "sync_runs",

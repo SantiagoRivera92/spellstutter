@@ -93,8 +93,8 @@ export interface MetagameDeck {
   scraped_at: string;
 }
 
-/** One side of a Melee round pairing, stored from that player's perspective. */
-export interface MeleeMatchRecord {
+/** One side of a round pairing, stored from that player's perspective. */
+export interface MatchRecord {
   event_slug: string;
   event_name: string;
   event_date: string;
@@ -115,9 +115,15 @@ export interface MeleeMatchRecord {
   game_wins: number;
   game_losses: number;
   game_draws: number;
-  source: "melee";
+  source: "melee" | "cardsrealm";
   scraped_at: string;
 }
+
+/** A Melee pairing row. */
+export type MeleeMatchRecord = MatchRecord & { source: "melee" };
+
+/** A Cardsrealm pairing row. */
+export type CardsrealmMatchRecord = MatchRecord & { source: "cardsrealm" };
 
 export interface ArchetypeStat {
   slug: string;
@@ -226,11 +232,13 @@ export interface MatchupSourceRecord {
 }
 
 /**
- * A matchup row that may combine exact Melee archetypes with endstep data.
+ * A matchup row that may combine exact Melee and Cardsrealm archetypes with
+ * optional endstep data.
  *
  * endstep groups some variants (for example every Affinity colour) under one
  * archetype, so an endstep row is marked `scope: "group"` unless its slug maps
- * back to exactly one app archetype. Melee rows always use exact app slugs.
+ * back to exactly one app archetype. Melee and Cardsrealm rows always use
+ * exact app slugs.
  */
 export interface CombinedMatchup {
   opponent_slug: string;
@@ -241,6 +249,7 @@ export interface CombinedMatchup {
   matches: number;
   win_rate: number | null;
   melee: MatchupSourceRecord;
+  cardsrealm: MatchupSourceRecord;
   endstep: MatchupSourceRecord;
   scope: "exact" | "group";
   endstep_opponent_slug: string | null;

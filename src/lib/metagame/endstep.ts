@@ -4,6 +4,7 @@ import type {
   EndstepArchetype,
   EndstepArchetypeOption,
 } from "./types";
+import { isSourceEnabled } from "./sources";
 
 // `_id` is an ObjectId and cannot cross the Server/Client boundary.
 const WITHOUT_ID = { projection: { _id: 0 } } as const;
@@ -15,6 +16,7 @@ export async function listEndstepArchetypes(
   formatId: string = DEFAULT_FORMAT,
   limit = 400,
 ): Promise<EndstepArchetypeOption[]> {
+  if (!isSourceEnabled("endstep")) return [];
   const db = await getDb();
   return db
     .collection<EndstepArchetype>(COLLECTIONS.endstepArchetypes)
@@ -44,6 +46,7 @@ export async function getEndstepArchetype(
   slug: string,
   formatId: string = DEFAULT_FORMAT,
 ): Promise<EndstepArchetype | null> {
+  if (!isSourceEnabled("endstep")) return null;
   const db = await getDb();
   return db
     .collection<EndstepArchetype>(COLLECTIONS.endstepArchetypes)
@@ -55,6 +58,7 @@ export async function getEndstepArchetypesForCard(
   cardName: string,
   formatId: string = DEFAULT_FORMAT,
 ): Promise<EndstepArchetypeOption[]> {
+  if (!isSourceEnabled("endstep")) return [];
   const db = await getDb();
   return db
     .collection<EndstepArchetype>(COLLECTIONS.endstepArchetypes)

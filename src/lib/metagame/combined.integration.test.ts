@@ -182,6 +182,39 @@ const matches = [
   }),
 ];
 
+const cardsrealmMatches = [
+  matchRow({
+    event_slug: "cardsrealm-1",
+    event_name: "Cardsrealm 1",
+    match_id: "cr1",
+    player: "Erin",
+    player_decklist_id: "cr-d1",
+    player_archetype: { slug: "mono-white-heroic", name: "Mono-White Heroic" },
+    opponent: "Frank",
+    opponent_decklist_id: "cr-d2",
+    opponent_archetype: { slug: "dimir-faeries", name: "Dimir Faeries" },
+    result: "win",
+    game_wins: 2,
+    game_losses: 0,
+    source: "cardsrealm",
+  }),
+  matchRow({
+    event_slug: "cardsrealm-1",
+    event_name: "Cardsrealm 1",
+    match_id: "cr2",
+    player: "Erin",
+    player_decklist_id: "cr-d1",
+    player_archetype: { slug: "mono-white-heroic", name: "Mono-White Heroic" },
+    opponent: "Grace",
+    opponent_decklist_id: "cr-d3",
+    opponent_archetype: { slug: "affinity", name: "Affinity" },
+    result: "loss",
+    game_wins: 0,
+    game_losses: 2,
+    source: "cardsrealm",
+  }),
+];
+
 const endstepMatchups = [
   {
     format_id: "Pauper",
@@ -269,14 +302,17 @@ const endstepMatchups = [
   },
 ];
 
-describe("combined Melee + endstep records", { skip }, () => {
+describe("combined Melee + Cardsrealm + endstep records", { skip }, () => {
   let queries: typeof import("./queries");
   let mongo: typeof import("@/lib/mongo/client");
+  const previousEndstep = process.env.METAGAME_ENDSTEP_ENABLED;
 
   before(async () => {
+    process.env.METAGAME_ENDSTEP_ENABLED = "true";
     const db = await connectTestDb("combined");
     await db.collection("metagame_decks").insertMany(decks);
     await db.collection("melee_matches").insertMany(matches);
+    await db.collection("cardsrealm_matches").insertMany(cardsrealmMatches);
     await db.collection("endstep_matchups").insertMany(endstepMatchups);
     queries = await import("./queries");
     mongo = await import("@/lib/mongo/client");
@@ -285,6 +321,8 @@ describe("combined Melee + endstep records", { skip }, () => {
   after(async () => {
     await mongo.closeDb();
     await closeTestDb();
+    if (previousEndstep == null) delete process.env.METAGAME_ENDSTEP_ENABLED;
+    else process.env.METAGAME_ENDSTEP_ENABLED = previousEndstep;
   });
 
   test("getMeleeArchetypeRecord uses exact Melee pairings and excludes byes", async () => {
@@ -297,6 +335,44 @@ describe("combined Melee + endstep records", { skip }, () => {
     assert.equal(record.matches, 5);
     assert.equal(record.win_rate, 3 / 4);
     assert.equal(record.source, "melee");
+  });
+
+  test("getCardsrealmArchetypeRecord uses exact Cardsrealm pairings", async () => {
+    const record = await queries.getCardsrealmArchetypeRecord(
+      "mono-white-heroic",
+      30,
+    );
+    assert.ok(record);
+    assert.equal(record.wins, 1);
+    assert.equal(record.losses, 1);
+    assert.equal(record.draws, 0);
+    assert.equal(record.matches, 2);
+    assert.equal(record.win_rate, 1 / 2);
+    assert.equal(record.source, "cardsrealm");
+    assert.deepEqual(record.cardsrealm, {
+      wins: 1,
+      losses: 1,
+      draws: 0,
+      matches: 2,
+    });
+  });
+
+  test("getCombinedArchetypeMatchups includes Cardsrealm rows", async () => {
+    const matchups = await queries.getCombinedArchetypeMatchups(
+      "mono-white-heroic",
+      30,
+    );
+
+    const dimir = matchups.find((row) => row.opponent_slug === "dimir-faeries");
+    assert.ok(dimir);
+    assert.equal(dimir.scope, "exact");
+    assert.equal(dimir.cardsrealm.matches, 1);
+    assert.equal(dimir.cardsrealm.wins, 1);
+    assert.equal(dimir.endstep.matches, 0);
+
+    const affinity = matchups.find((row) => row.opponent_slug === "affinity");
+    assert.ok(affinity);
+    assert.equal(affinity.cardsrealm.losses, 1);
   });
 
   test("getCombinedArchetypeRecord sums exact Melee and endstep records", async () => {

@@ -19,7 +19,7 @@ export default async function EventsPage() {
           <SetupNotice title="Connect the metagame store">
             <p>
               Set <code className="font-mono text-foreground">MONGODB_URI</code>{" "}
-              and run the MTGO sync to load league and challenge results.
+              and run a metagame sync to load league, challenge, and paper results.
             </p>
           </SetupNotice>
         </div>
@@ -33,7 +33,7 @@ export default async function EventsPage() {
     <div className="mx-auto max-w-6xl px-4 py-8">
       <PageHeader
         title="Events"
-        description="Recent Pauper leagues and challenges. Open an event to browse its decklists."
+        description="Recent Pauper events from MTGO, Melee, Cardsrealm, and MTGTop8. Open an event to browse its decklists."
         actions={
           <Link href="/metagame" className={buttonVariants({ variant: "outline", size: "sm" })}>
             Metagame

@@ -165,6 +165,16 @@ const events = [
     scraped_at: "2026-01-01T00:00:00.000Z",
   },
   {
+    slug: "big-1",
+    name: "Big Event",
+    event_type: "showcase",
+    date: daysAgo(1),
+    url: "https://example.test/big-1",
+    player_count: 150,
+    deck_count: 0,
+    scraped_at: "2026-01-04T00:00:00.000Z",
+  },
+  {
     slug: "league-1",
     name: "League 1",
     event_type: "league",
@@ -337,8 +347,10 @@ describe("metagame queries", { skip }, () => {
   let queries: typeof import("./queries");
   let endstep: typeof import("./endstep");
   let mongo: typeof import("@/lib/mongo/client");
+  const previousEndstep = process.env.METAGAME_ENDSTEP_ENABLED;
 
   before(async () => {
+    process.env.METAGAME_ENDSTEP_ENABLED = "true";
     const db = await connectTestDb("metagame");
     await db.collection("metagame_events").insertMany(events);
     await db.collection("metagame_decks").insertMany(recentDecks);
@@ -438,21 +450,30 @@ describe("metagame queries", { skip }, () => {
   after(async () => {
     await mongo.closeDb();
     await closeTestDb();
+    if (previousEndstep == null) delete process.env.METAGAME_ENDSTEP_ENABLED;
+    else process.env.METAGAME_ENDSTEP_ENABLED = previousEndstep;
   });
 
   test("listEvents sorts by date then scraped_at and respects the limit", async () => {
     const all = await queries.listEvents();
     assert.deepEqual(
       all.map((event) => event.slug),
-      ["recent-2", "challenge-1", "league-1", "old-event"],
+      ["big-1", "recent-2", "challenge-1", "league-1", "old-event"],
     );
     assert.equal(all.some((event) => "_id" in event), false);
 
     const limited = await queries.listEvents(2);
     assert.deepEqual(
       limited.map((event) => event.slug),
-      ["recent-2", "challenge-1"],
+      ["big-1", "recent-2"],
     );
+  });
+
+  test("listBigEvents returns only events with at least 100 players", async () => {
+    const big = await queries.listBigEvents(3);
+    assert.deepEqual(big.map((event) => event.slug), ["big-1"]);
+    assert.equal(big[0].player_count, 150);
+    assert.equal("_id" in big[0], false);
   });
 
   test("getEvent returns the event and its decks in rank order", async () => {
@@ -589,7 +610,7 @@ describe("metagame queries", { skip }, () => {
 
   test("getMetagameSummary aggregates totals and top cards", async () => {
     const summary = await queries.getMetagameSummary(30);
-    assert.equal(summary.events, 3);
+    assert.equal(summary.events, 4);
     assert.equal(summary.decks, 5);
     assert.ok(summary.since);
 

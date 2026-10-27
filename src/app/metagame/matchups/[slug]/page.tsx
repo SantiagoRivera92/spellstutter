@@ -6,6 +6,7 @@ import { getSession } from "@/lib/auth/session";
 import { isMongoConfigured } from "@/lib/env";
 import { getCombinedArchetypeMatchups } from "@/lib/metagame/queries";
 import { archetypeName } from "@/lib/metagame/archetypes";
+import { isSourceEnabled } from "@/lib/metagame/sources";
 import { buttonVariants } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +28,7 @@ export default async function MatchupsPage({
       <div className="mx-auto max-w-3xl px-4 py-8">
         <PageHeader title="Matchups" />
         <SetupNotice title="Connect the metagame store">
-          <p>Configure MongoDB and run the endstep sync to view matchup data.</p>
+          <p>Configure MongoDB and run a metagame sync to view matchup data.</p>
         </SetupNotice>
       </div>
     );
@@ -54,6 +55,19 @@ export default async function MatchupsPage({
   }
 
   const matchups = await getCombinedArchetypeMatchups(slug, 30).catch(() => []);
+  const showMelee = isSourceEnabled("melee");
+  const showCardsrealm = isSourceEnabled("cardsrealm");
+  const showEndstep = isSourceEnabled("endstep");
+  const sourceLabels = [
+    showMelee && "Melee pairings",
+    showCardsrealm && "Cardsrealm pairings",
+    showEndstep && "endstep matchups",
+  ].filter((label): label is string => Boolean(label));
+  const syncCommands = [
+    showMelee && "pnpm sync:melee",
+    showCardsrealm && "pnpm sync:cardsrealm",
+    showEndstep && "pnpm sync:endstep",
+  ].filter((command): command is string => Boolean(command));
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
@@ -73,16 +87,16 @@ export default async function MatchupsPage({
 
       <PageHeader
         title={`Matchups - ${archetypeName(slug)}`}
-        description={`Head-to-head win rates from Melee pairings and endstep (last 30 days).`}
+        description={`Head-to-head win rates from ${sourceLabels.join(" + ") || "enabled sources"} (last 30 days).`}
       />
 
       {matchups.length === 0 ? (
         <div className="mt-8 text-center text-muted-foreground">
           <p>No matchup data available yet.</p>
           <p className="mt-2 text-sm">
-            Run <code className="font-mono">pnpm sync:melee</code> and{" "}
-            <code className="font-mono">pnpm sync:endstep</code> to populate
-            matchup data.
+            {syncCommands.length
+              ? `Run ${syncCommands.join(" and ")} to populate matchup data.`
+              : "Enable a matchup source to populate this page."}
           </p>
         </div>
       ) : (
@@ -94,8 +108,15 @@ export default async function MatchupsPage({
                 <tr className="border-bottom border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
                   <th scope="col" className="px-3 py-2 font-medium">Opponent</th>
                   <th scope="col" className="px-3 py-2 font-medium">Scope</th>
-                  <th scope="col" className="px-3 py-2 text-right font-medium">Melee</th>
-                  <th scope="col" className="px-3 py-2 text-right font-medium">Endstep</th>
+                  {showMelee ? (
+                    <th scope="col" className="px-3 py-2 text-right font-medium">Melee</th>
+                  ) : null}
+                  {showCardsrealm ? (
+                    <th scope="col" className="px-3 py-2 text-right font-medium">Cardsrealm</th>
+                  ) : null}
+                  {showEndstep ? (
+                    <th scope="col" className="px-3 py-2 text-right font-medium">Endstep</th>
+                  ) : null}
                   <th scope="col" className="px-3 py-2 text-right font-medium">Matches</th>
                   <th scope="col" className="px-3 py-2 text-right font-medium">Win rate</th>
                   <th scope="col" className="px-3 py-2 text-right font-medium">Record</th>
@@ -104,11 +125,18 @@ export default async function MatchupsPage({
               <tbody>
                 {matchups.map((record) => {
                   const winPct =
-                    record.win_rate != null ? record.win_rate * 100 : 0;
+                    record.win_rate != null ? record.win_rate * 100 : null;
                   const opponentName = record.opponent_name || record.opponent_slug;
                   const meleeLabel = record.melee.matches
                     ? `${record.melee.wins}-${record.melee.losses}${
                         record.melee.draws ? `-${record.melee.draws}` : ""
+                      }`
+                    : "—";
+                  const cardsrealmLabel = record.cardsrealm.matches
+                    ? `${record.cardsrealm.wins}-${record.cardsrealm.losses}${
+                        record.cardsrealm.draws
+                          ? `-${record.cardsrealm.draws}`
+                          : ""
                       }`
                     : "—";
                   const endstepLabel = record.endstep.matches
@@ -128,17 +156,26 @@ export default async function MatchupsPage({
                       <td className="px-3 py-1.5 text-xs text-muted-foreground">
                         {record.scope === "group" ? "endstep group" : "exact"}
                       </td>
-                      <td className="px-3 py-1.5 text-right numeric">
-                        {meleeLabel}
-                      </td>
-                      <td className="px-3 py-1.5 text-right numeric">
-                        {endstepLabel}
-                      </td>
+                      {showMelee ? (
+                        <td className="px-3 py-1.5 text-right numeric">
+                          {meleeLabel}
+                        </td>
+                      ) : null}
+                      {showCardsrealm ? (
+                        <td className="px-3 py-1.5 text-right numeric">
+                          {cardsrealmLabel}
+                        </td>
+                      ) : null}
+                      {showEndstep ? (
+                        <td className="px-3 py-1.5 text-right numeric">
+                          {endstepLabel}
+                        </td>
+                      ) : null}
                       <td className="px-3 py-1.5 text-right numeric">
                         {record.matches}
                       </td>
                       <td className="px-3 py-1.5 text-right numeric">
-                        {winPct.toFixed(1)}%
+                        {winPct == null ? "—" : `${winPct.toFixed(1)}%`}
                       </td>
                       <td className="px-3 py-1.5 text-right numeric">
                         {recordLabel}
@@ -151,11 +188,17 @@ export default async function MatchupsPage({
           </div>
 
           <div className="mt-4 text-sm text-muted-foreground">
-            <p>Window: 30d | Sources: Melee pairings + endstep matchups</p>
             <p>
-              Melee rows use exact archetype slugs. “endstep group” rows cannot
-              be split into individual variants.
+              Window: 30d | Sources: {sourceLabels.join(" + ") || "none"}
             </p>
+            {showMelee || showCardsrealm ? (
+              <p>Melee and Cardsrealm rows use exact archetype slugs.</p>
+            ) : null}
+            {showEndstep ? (
+              <p>
+                “endstep group” rows cannot be split into individual variants.
+              </p>
+            ) : null}
           </div>
         </section>
       )}

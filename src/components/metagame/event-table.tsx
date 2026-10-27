@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ExternalLink } from "lucide-react";
 import type { MetagameEvent } from "@/lib/metagame/types";
+import { eventSourceName } from "@/lib/metagame/event-source";
 import { formatDate } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 
@@ -8,8 +9,8 @@ export function EventTable({ events }: { events: MetagameEvent[] }) {
   if (!events.length) {
     return (
       <p className="text-sm text-muted-foreground">
-        No events stored yet. Run the metagame sync to populate leagues and
-        challenges.
+        No events stored yet. Run the metagame, Melee, Cardsrealm, or MTGTop8
+        sync to populate events.
       </p>
     );
   }
@@ -17,7 +18,7 @@ export function EventTable({ events }: { events: MetagameEvent[] }) {
   return (
     <div className="overflow-x-auto rounded-lg border border-border">
       <table className="w-full border-collapse text-sm">
-        <caption className="sr-only">Recent Pauper events on MTGO</caption>
+        <caption className="sr-only">Recent Pauper events</caption>
         <thead>
           <tr className="border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
             <th scope="col" className="px-3 py-2 font-medium">
@@ -65,7 +66,7 @@ export function EventTable({ events }: { events: MetagameEvent[] }) {
                   rel="noreferrer noopener"
                   className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
                 >
-                  MTGO
+                  {eventSourceName(event)}
                   <ExternalLink className="size-3" aria-hidden />
                 </a>
               </td>

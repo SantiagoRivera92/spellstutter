@@ -30,11 +30,12 @@ actually winning.
   archetype's core.
 - **Library and folders** — a nested folder tree, cover art, public decks, and
   per-deck comments.
-- **Metagame tracker** — daily MTGO league and challenge results, plus paper
-  Melee events, split into color-aware archetypes with meta share, average
-  composition, matchup records, and staple leaderboards.
-- **Combined winrates** — exact Melee pairing records combined with endstep
-  matchup aggregates, including per-deck match records.
+- **Metagame tracker** — daily MTGO league and challenge results, paper Melee
+  events, Cardsrealm tournaments, and MTGTop8 paper events, split into
+  color-aware archetypes with meta share, average composition, matchup
+  records, and staple leaderboards.
+- **Combined winrates** — exact Melee and Cardsrealm pairing records combined
+  with optional endstep matchup aggregates, including per-deck match records.
 - **Second archetype source** — endstep.cc sample lists and per-card inclusion
   stats for deckbuilding and matchup aggregates.
 - **Accounts and notifications** — Supabase Auth, profiles, comment/reply
@@ -58,6 +59,8 @@ actually winning.
 Scryfall bulk API ───sync:cards────▶ MongoDB: cards, printings
 mtgo.com decklists ──sync:metagame─▶ MongoDB: metagame_events, metagame_decks
 melee.gg pairings ───sync:melee────▶ MongoDB: metagame_events, metagame_decks, melee_matches
+cardsrealm.com API ──sync:cardsrealm▶ MongoDB: metagame_events, metagame_decks, cardsrealm_matches
+mtgtop8.com ────────sync:mtgtop8──▶ MongoDB: metagame_events, metagame_decks
 endstep.cc API ──────sync:endstep──▶ MongoDB: endstep_archetypes, endstep_matchups
                                            │
                       Next.js (App Router) ─┼─▶ /api/cards/*, /api/scryfall/*
@@ -152,6 +155,8 @@ show a setup notice instead of failing.
 | `pnpm sync:cards` | Scryfall bulk API | `cards`, `printings` | Daily, 04:17 UTC |
 | `pnpm sync:metagame` | mtgo.com decklists | `metagame_events`, `metagame_decks` | Daily, 05:23 UTC |
 | `pnpm sync:melee` | melee.gg paper Pauper | `metagame_events`, `metagame_decks`, `melee_matches` | Daily, 07:13 UTC |
+| `pnpm sync:cardsrealm` | cardsrealm.com Pauper events | `metagame_events`, `metagame_decks`, `cardsrealm_matches` | Daily, 08:07 UTC |
+| `pnpm sync:mtgtop8` | mtgtop8.com paper Pauper events | `metagame_events`, `metagame_decks` | Daily, 08:37 UTC |
 | `pnpm sync:endstep` | endstep.cc metagame API | `endstep_archetypes`, `endstep_matchups` | Daily, 06:37 UTC |
 | `pnpm sync:reclassify` | stored decks only | Recomputes archetype + color | Manual |
 
@@ -163,9 +168,17 @@ scraping) and classifies each list with `src/lib/metagame/archetypes.ts`.
 in `melee_matches`, and replaces each deck's standings-only record with the
 pairing record (byes excluded). It defaults to events with at least 16 players.
 
+`sync:cardsrealm` uses the public Cardsrealm API to import finished Pauper
+events and their standings decklists, then reads each Swiss round from
+Cardsrealm's `getround` endpoint and stores one row per player per match in
+`cardsrealm_matches`. Pairing rows are matched through Cardsrealm's player URL
+slug, then the standing's name, nickname, and Cockatrice/Arena/MTGO aliases. It
+defaults to events with at least 16 players and skips events already stored from
+another source by name and date.
+
 ## GitHub Actions
 
-Four workflows run daily and can be triggered manually from the Actions tab:
+Six workflows run daily and can be triggered manually from the Actions tab:
 
 | Workflow | Command | Schedule |
 | --- | --- | --- |
@@ -173,14 +186,16 @@ Four workflows run daily and can be triggered manually from the Actions tab:
 | `.github/workflows/sync-metagame.yml` | `pnpm sync:metagame` | 05:23 UTC |
 | `.github/workflows/sync-endstep.yml` | `pnpm sync:endstep` | 06:37 UTC |
 | `.github/workflows/sync-melee.yml` | `pnpm sync:melee` | 07:13 UTC |
+| `.github/workflows/sync-cardsrealm.yml` | `pnpm sync:cardsrealm` | 08:07 UTC |
+| `.github/workflows/sync-mtgtop8.yml` | `pnpm sync:mtgtop8` | 08:37 UTC |
 
 Configure these in the repository:
 
 - **Secret:** `MONGODB_URI`
 - **Variables:** `MONGODB_DB`, `SCRYFALL_USER_AGENT`
 
-Manual runs of the metagame, Melee, and endstep workflows accept optional inputs
-such as year/month, format, window, and limits.
+Manual runs of the metagame, Melee, Cardsrealm, MTGTop8, and endstep workflows
+accept optional inputs such as year/month, format, window, and limits.
 
 ## Environment variables
 
@@ -192,6 +207,11 @@ such as year/month, format, window, and limits.
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | App | Browser-safe anon key |
 | `NEXT_PUBLIC_SITE_URL` | App | Canonical origin for auth redirects; required in production |
 | `SCRYFALL_USER_AGENT` | Card sync | Descriptive User-Agent with contact info |
+| `METAGAME_MTGO_ENABLED` | App queries | Include MTGO events/decks; defaults to `true` |
+| `METAGAME_MELEE_ENABLED` | App queries | Include Melee events/decks and matchups; defaults to `true` |
+| `METAGAME_CARDSREALM_ENABLED` | App queries | Include Cardsrealm events/decks and matchups; defaults to `true` |
+| `METAGAME_MTGTOP8_ENABLED` | App queries | Include MTGTop8 events/decks; defaults to `true` |
+| `METAGAME_ENDSTEP_ENABLED` | App queries | Include endstep shares/records/matchups; defaults to `false` |
 
 ## Scripts
 
@@ -204,6 +224,9 @@ such as year/month, format, window, and limits.
 | `pnpm test` | Unit and Mongo-backed integration tests |
 | `pnpm sync:cards` | Scryfall → Mongo |
 | `pnpm sync:metagame` | MTGO → Mongo |
+| `pnpm sync:melee` | melee.gg events, decklists, and pairings → Mongo |
+| `pnpm sync:cardsrealm` | Cardsrealm events, decklists, and pairings → Mongo |
+| `pnpm sync:mtgtop8` | MTGTop8 paper events and decklists → Mongo |
 | `pnpm sync:reclassify` | Re-apply archetype rules to stored decks (no network) |
 | `pnpm sync:endstep` | endstep.cc archetypes → Mongo (sample lists + card stats) |
 
@@ -217,7 +240,7 @@ src/
     api/scryfall/      Scryfall search proxy
     cards/             card search and card detail pages
     decks/             library, editor, public decks
-    events/            MTGO event list and detail
+    events/            event list and detail (MTGO, Melee, Cardsrealm, MTGTop8)
     metagame/          overview, archetypes, matchups
     notifications/     comment and reply notifications
     staples/           staple leaderboards by category
@@ -231,7 +254,8 @@ src/
     metagame/          archetype rules, endstep helpers, queries
     auth/              session, safe redirects, rate limiting
     supabase/          server client and session proxy
-scripts/               sync-scryfall, scrape-metagame, sync-endstep, reclassify
+scripts/               sync-scryfall, scrape-metagame, scrape-melee, scrape-cardsrealm,
+                       scrape-mtgtop8, sync-endstep, reclassify
 supabase/migrations/   Postgres schema and RLS
 ```
 
@@ -312,18 +336,23 @@ archetypes (slug as-is) and endstep archetypes (slug prefixed `endstep:`).
 
 ### Combined winrates
 
-Archetype pages show a combined record from exact Melee pairings plus endstep
-matchups. Matchup pages keep the two granularities visible:
+Archetype pages show a combined record from exact Melee and Cardsrealm pairings
+plus endstep matchups when enabled. Matchup pages keep the granularities
+visible:
 
-- **Melee rows** use this app's exact archetype slugs.
+- **Melee and Cardsrealm rows** use this app's exact archetype slugs.
 - **endstep rows** use endstep's taxonomy. When endstep folds several variants
   into one bucket (for example every Affinity colour), the row is marked
   `endstep group` and cannot be split back into variants.
-- When an endstep bucket maps to exactly one app archetype, the Melee and
+- When an endstep bucket maps to exactly one app archetype, the pairing and
   endstep counts merge into one exact row.
 
-Melee per-deck records come from round pairings, not standings: byes are stored
-separately and excluded from winrate denominators.
+Melee and Cardsrealm per-deck records come from round pairings, not standings:
+byes are stored separately and excluded from winrate denominators. Set
+`METAGAME_ENDSTEP_ENABLED=false` (the default) to keep the stale endstep
+metagame endpoint out of the UI; `METAGAME_MTGO_ENABLED`,
+`METAGAME_MELEE_ENABLED`, `METAGAME_CARDSREALM_ENABLED`, and
+`METAGAME_MTGTOP8_ENABLED` control the other sources.
 
 ### Design notes
 

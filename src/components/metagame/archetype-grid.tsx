@@ -31,7 +31,7 @@ export function ArchetypeGrid({
                 fill
                 unoptimized
                 sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                className="object-cover opacity-80 transition-opacity duration-150 group-hover:opacity-100"
+                className="object-cover opacity-80 transition-[opacity,transform] duration-300 ease-out group-hover:scale-105 group-hover:opacity-100"
               />
             ) : null}
             <span

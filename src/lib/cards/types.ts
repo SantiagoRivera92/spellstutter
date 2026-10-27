@@ -1,5 +1,9 @@
 export type CardColor = "W" | "U" | "B" | "R" | "G";
 
+/** Printings page size: basic lands have 900+ versions, too many to render at once. */
+export const PRINTINGS_PAGE_SIZE = 48;
+export const MAX_PRINTINGS_PAGE_SIZE = 60;
+
 export type LegalityStatus =
   | "legal"
   | "not_legal"

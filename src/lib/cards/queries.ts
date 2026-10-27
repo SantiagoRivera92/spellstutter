@@ -4,11 +4,13 @@ import { COLLECTIONS, getDb } from "@/lib/mongo/client";
 import { normalizeName } from "@/lib/cards/normalize-name";
 import { parseQuery, isQueryEmpty } from "./search-syntax";
 import { isPauperLegal } from "./types";
-import type {
-  Card,
-  CardSearchResponse,
-  CardSearchResult,
-  Printing,
+import {
+  MAX_PRINTINGS_PAGE_SIZE,
+  PRINTINGS_PAGE_SIZE,
+  type Card,
+  type CardSearchResponse,
+  type CardSearchResult,
+  type Printing,
 } from "./types";
 
 export interface SearchOptions {
@@ -204,6 +206,59 @@ export async function getPrintingsByIds(
     .collection<Printing>(COLLECTIONS.printings)
     .find({ scryfall_id: { $in: scryfallIds } }, WITHOUT_ID)
     .toArray();
+}
+
+export interface PrintingPage {
+  printings: Printing[];
+  total: number;
+}
+
+export async function getPrintingsPage(
+  oracleId: string,
+  options: {
+    limit?: number;
+    offset?: number;
+    preferScryfallId?: string | null;
+  } = {},
+): Promise<PrintingPage> {
+  const db = await getDb();
+  const limit = Math.min(
+    MAX_PRINTINGS_PAGE_SIZE,
+    Math.max(1, options.limit ?? PRINTINGS_PAGE_SIZE),
+  );
+  const offset = Math.max(0, options.offset ?? 0);
+  const prefer = options.preferScryfallId;
+
+  const collection = db.collection<Printing>(COLLECTIONS.printings);
+  const [printings, total] = await Promise.all([
+    collection
+      .aggregate<Printing>([
+        { $match: { oracle_id: oracleId } },
+        ...(prefer
+          ? [
+              {
+                $addFields: {
+                  _preferred: { $eq: ["$scryfall_id", prefer] },
+                },
+              } as const,
+              {
+                $sort: {
+                  _preferred: -1,
+                  released_at: -1,
+                  scryfall_id: 1,
+                },
+              } as const,
+            ]
+          : [{ $sort: { released_at: -1, scryfall_id: 1 } } as const]),
+        { $skip: offset },
+        { $limit: limit },
+        { $project: { _id: 0, _preferred: 0 } },
+      ])
+      .toArray(),
+    collection.countDocuments({ oracle_id: oracleId }),
+  ]);
+
+  return { printings, total };
 }
 
 export async function getPrintings(oracleId: string): Promise<Printing[]> {

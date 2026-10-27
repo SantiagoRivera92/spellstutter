@@ -193,6 +193,46 @@ describe("card API routes", { skip }, () => {
     );
   });
 
+  test("GET /api/cards/[oracleId] paginates and prefers a printing", async () => {
+    const page = await lookupRoute.GET(
+      request("/api/cards/o-bolt?limit=1&offset=1"),
+      {
+        params: Promise.resolve({ oracleId: "o-bolt" }),
+      } as unknown as Parameters<typeof lookupRoute.GET>[1],
+    );
+    assert.equal(page.status, 200);
+    const pageBody = await page.json();
+    assert.equal(pageBody.total, 2);
+    assert.deepEqual(
+      pageBody.printings.map((entry: { scryfall_id: string }) => entry.scryfall_id),
+      ["p-bolt"],
+    );
+
+    const preferred = await lookupRoute.GET(
+      request("/api/cards/o-bolt?limit=1&prefer=p-bolt"),
+      {
+        params: Promise.resolve({ oracleId: "o-bolt" }),
+      } as unknown as Parameters<typeof lookupRoute.GET>[1],
+    );
+    assert.equal(preferred.status, 200);
+    const preferredBody = await preferred.json();
+    assert.equal(preferredBody.printings[0].scryfall_id, "p-bolt");
+  });
+
+  test("GET /api/cards/[oracleId] validates printing pagination", async () => {
+    for (const query of ["limit=0", "limit=61", "offset=-1"]) {
+      const response = await lookupRoute.GET(
+        request(`/api/cards/o-bolt?${query}`),
+        {
+          params: Promise.resolve({ oracleId: "o-bolt" }),
+        } as unknown as Parameters<typeof lookupRoute.GET>[1],
+      );
+      assert.equal(response.status, 400, query);
+      const body = await response.json();
+      assert.equal(body.error, "invalid_query");
+    }
+  });
+
   test("GET /api/cards/[oracleId] returns 404 for an unknown card", async () => {
     const response = await lookupRoute.GET(
       request("/api/cards/missing"),

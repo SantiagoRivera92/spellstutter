@@ -17,7 +17,12 @@
   "observability": {
     "enabled": true
   },
-  "vars": {
+    "vars": {
+    "METAGAME_CARDSREALM_ENABLED": "true",
+    "METAGAME_ENDSTEP_ENABLED": "false",
+    "METAGAME_MELEE_ENABLED": "true",
+    "METAGAME_MTGO_ENABLED": "true",
+    "METAGAME_MTGTOP8_ENABLED": "true",
     "MONGODB_DB": "spellstutter",
     "NEXT_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJmaGxqcHFzcmpvY2lreXhhZGlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA2MDAxODIsImV4cCI6MjEwNjE3NjE4Mn0.qvoYV26R0vdBmIeLJ9KibpEWC4WRDf4KzPdlCIM2Nu8",
     "NEXT_PUBLIC_SUPABASE_URL": "https://bfhljpqsrjocikyxadis.supabase.co",

@@ -2,7 +2,11 @@
 
 import * as React from "react";
 import Image from "next/image";
-import type { CardImages, Printing } from "@/lib/cards/types";
+import {
+  PRINTINGS_PAGE_SIZE,
+  type CardImages,
+  type Printing,
+} from "@/lib/cards/types";
 import { cn, formatDate } from "@/lib/utils";
 import { Dialog } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
@@ -29,16 +33,34 @@ export function PrintingPickerDialog({
   onSelect: (printing: Printing) => void;
 }) {
   const [printings, setPrintings] = React.useState<Printing[] | null>(null);
+  const [total, setTotal] = React.useState(0);
   const [error, setError] = React.useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = React.useState(false);
+  const [loadError, setLoadError] = React.useState(false);
+
+  const loadPage = React.useCallback(
+    async (offset: number): Promise<{ printings: Printing[]; total: number }> => {
+      const params = new URLSearchParams({
+        offset: String(offset),
+        limit: String(PRINTINGS_PAGE_SIZE),
+      });
+      if (currentPrintingId) params.set("prefer", currentPrintingId);
+      const response = await fetch(`/api/cards/${oracleId}?${params}`);
+      if (!response.ok) throw new Error("failed");
+      return (await response.json()) as { printings: Printing[]; total: number };
+    },
+    [currentPrintingId, oracleId],
+  );
 
   React.useEffect(() => {
     let cancelled = false;
     const load = async () => {
       try {
-        const response = await fetch(`/api/cards/${oracleId}`);
-        if (!response.ok) throw new Error("failed");
-        const data = (await response.json()) as { printings: Printing[] };
-        if (!cancelled) setPrintings(data.printings);
+        const data = await loadPage(0);
+        if (!cancelled) {
+          setPrintings(data.printings);
+          setTotal(data.total);
+        }
       } catch {
         if (!cancelled) setError("Could not load printings.");
       }
@@ -47,7 +69,29 @@ export function PrintingPickerDialog({
     return () => {
       cancelled = true;
     };
-  }, [oracleId]);
+  }, [loadPage]);
+
+  async function loadMore() {
+    if (!printings) return;
+    setLoadingMore(true);
+    setLoadError(false);
+    try {
+      const data = await loadPage(printings.length);
+      setPrintings((current) => {
+        if (!current) return data.printings;
+        const seen = new Set(current.map((entry) => entry.scryfall_id));
+        return [
+          ...current,
+          ...data.printings.filter((entry) => !seen.has(entry.scryfall_id)),
+        ];
+      });
+      setTotal(data.total);
+    } catch {
+      setLoadError(true);
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   return (
     <Dialog
@@ -68,7 +112,8 @@ export function PrintingPickerDialog({
           No printings on record for this card.
         </p>
       ) : (
-        <ul className="grid max-h-[28rem] grid-cols-3 gap-3 overflow-y-auto sm:grid-cols-4">
+        <>
+          <ul className="grid max-h-[28rem] grid-cols-3 gap-3 overflow-y-auto sm:grid-cols-4">
           {printings.map((printing) => {
             const image = printingImage(printing);
             const active = printing.scryfall_id === currentPrintingId;
@@ -112,6 +157,26 @@ export function PrintingPickerDialog({
             );
           })}
         </ul>
+          {printings.length < total ? (
+            <div className="mt-3 text-center">
+              <button
+                type="button"
+                onClick={loadMore}
+                disabled={loadingMore || pending}
+                className="rounded-md border border-border px-3 py-1.5 text-xs font-medium transition-colors duration-150 hover:border-primary/50 disabled:opacity-60"
+              >
+                {loadingMore
+                  ? "Loading…"
+                  : `Load more printings (${total - printings.length} left)`}
+              </button>
+              {loadError ? (
+                <p className="mt-2 text-xs text-destructive">
+                  Could not load more printings. Try again.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+        </>
       )}
     </Dialog>
   );

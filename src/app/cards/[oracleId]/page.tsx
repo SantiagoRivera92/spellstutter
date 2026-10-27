@@ -7,8 +7,8 @@ import { ManaCost } from "@/components/cards/mana-cost";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/layout/page-header";
 import { SetupNotice } from "@/components/setup-notice";
-import { getCardByOracleId, getPrintings } from "@/lib/cards/queries";
-import { isPauperLegal } from "@/lib/cards/types";
+import { getCardByOracleId, getPrintingsPage } from "@/lib/cards/queries";
+import { isPauperLegal, PRINTINGS_PAGE_SIZE } from "@/lib/cards/types";
 import { isMongoConfigured } from "@/lib/env";
 import { getArchetypesForCard } from "@/lib/metagame/queries";
 
@@ -60,26 +60,32 @@ export default async function CardPage({
     );
   }
 
-  const [card, printings] = await Promise.all([
-    getCardByOracleId(oracleId).catch(() => null),
-    getPrintings(oracleId).catch(() => []),
-  ]);
+  const card = await getCardByOracleId(oracleId).catch(() => null);
   if (!card) notFound();
 
+  const defaultPrintingId =
+    card.metagame_printing_id ?? card.default_printing_id;
   const pauper = isPauperLegal(card);
-  const usage = pauper
-    ? await getArchetypesForCard(oracleId, 120).catch(() => [])
-    : [];
+  const [printingPage, usage] = await Promise.all([
+    getPrintingsPage(oracleId, {
+      limit: PRINTINGS_PAGE_SIZE,
+      preferScryfallId: defaultPrintingId,
+    }).catch(() => ({ printings: [], total: 0 })),
+    pauper
+      ? getArchetypesForCard(oracleId, 120).catch(() => [])
+      : Promise.resolve([]),
+  ]);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
       <div className="grid gap-8 lg:grid-cols-[22rem_minmax(0,1fr)]">
         <PrintingGallery
+          key={oracleId}
+          oracleId={oracleId}
           name={card.name}
-          printings={printings}
-          defaultPrintingId={
-            card.metagame_printing_id ?? card.default_printing_id
-          }
+          printings={printingPage.printings}
+          total={printingPage.total}
+          defaultPrintingId={defaultPrintingId}
         />
 
         <div className="min-w-0">

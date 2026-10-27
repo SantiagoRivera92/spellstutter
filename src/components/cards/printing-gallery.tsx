@@ -2,7 +2,11 @@
 
 import * as React from "react";
 import Image from "next/image";
-import type { CardImages, Printing } from "@/lib/cards/types";
+import {
+  PRINTINGS_PAGE_SIZE,
+  type CardImages,
+  type Printing,
+} from "@/lib/cards/types";
 import { cn, formatDate } from "@/lib/utils";
 
 function printingImage(printing: Printing): CardImages {
@@ -12,20 +16,58 @@ function printingImage(printing: Printing): CardImages {
 }
 
 export function PrintingGallery({
+  oracleId,
   name,
   printings,
+  total,
   defaultPrintingId,
 }: {
+  oracleId: string;
   name: string;
   printings: Printing[];
+  total: number;
   defaultPrintingId: string;
 }) {
   const initialIndex = Math.max(
     0,
     printings.findIndex((printing) => printing.scryfall_id === defaultPrintingId),
   );
+  const [items, setItems] = React.useState(printings);
+  const [totalCount, setTotalCount] = React.useState(total);
   const [index, setIndex] = React.useState(initialIndex);
-  const selected = printings[index] ?? printings[0] ?? null;
+  const [loadingMore, setLoadingMore] = React.useState(false);
+  const [loadError, setLoadError] = React.useState(false);
+  const selected = items[index] ?? items[0] ?? null;
+
+  async function loadMore() {
+    setLoadingMore(true);
+    setLoadError(false);
+    try {
+      const params = new URLSearchParams({
+        offset: String(items.length),
+        limit: String(PRINTINGS_PAGE_SIZE),
+        prefer: defaultPrintingId,
+      });
+      const response = await fetch(`/api/cards/${oracleId}?${params}`);
+      if (!response.ok) throw new Error("failed");
+      const data = (await response.json()) as {
+        printings: Printing[];
+        total: number;
+      };
+      setItems((current) => {
+        const seen = new Set(current.map((entry) => entry.scryfall_id));
+        return [
+          ...current,
+          ...data.printings.filter((entry) => !seen.has(entry.scryfall_id)),
+        ];
+      });
+      setTotalCount(data.total);
+    } catch {
+      setLoadError(true);
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   if (!selected) {
     return (
@@ -66,17 +108,17 @@ export function PrintingGallery({
           <h2 className="font-display text-sm font-medium">
             Printings{" "}
             <span className="numeric text-xs text-muted-foreground">
-              ({printings.length})
+              ({totalCount})
             </span>
           </h2>
-          {printings.length > 1 ? (
+          {totalCount > 1 ? (
             <span className="text-xs text-muted-foreground">
-              Pick the version you want
+              Showing {items.length} of {totalCount}
             </span>
           ) : null}
         </div>
         <ul className="grid max-h-64 grid-cols-4 gap-2 overflow-y-auto pr-1 sm:grid-cols-6 lg:grid-cols-4">
-          {printings.map((printing, printingIndex) => {
+          {items.map((printing, printingIndex) => {
             const thumb = printingImage(printing);
             const active = printingIndex === index;
             return (
@@ -112,6 +154,25 @@ export function PrintingGallery({
             );
           })}
         </ul>
+        {items.length < totalCount ? (
+          <div className="mt-3 text-center">
+            <button
+              type="button"
+              onClick={loadMore}
+              disabled={loadingMore}
+              className="rounded-md border border-border px-3 py-1.5 text-xs font-medium transition-colors duration-150 hover:border-primary/50 disabled:opacity-60"
+            >
+              {loadingMore
+                ? "Loading…"
+                : `Load more printings (${totalCount - items.length} left)`}
+            </button>
+            {loadError ? (
+              <p className="mt-2 text-xs text-destructive">
+                Could not load more printings. Try again.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </div>
   );

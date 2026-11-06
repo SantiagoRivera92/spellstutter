@@ -640,8 +640,9 @@ describe("metagame queries", { skip }, () => {
     assert.equal(staples.creatures[0].decks, 2);
     assert.equal(staples.creatures[0].copies, 8);
     assert.equal(staples.creatures[0].art_crop, "delver-print-art");
-    assert.equal(staples.noncreatures[0].name, "Bitterblossom");
-    assert.equal(staples.noncreatures[0].decks, 2);
+    assert.equal(staples.spells[0].name, "Counterspell");
+    assert.equal(staples.enchantments[0].name, "Bitterblossom");
+    assert.equal(staples.enchantments[0].decks, 2);
     assert.equal(staples.lands[0].name, "Island");
     assert.equal(staples.lands[0].decks, 4);
     assert.equal(staples.lands[0].copies, 58);
@@ -656,8 +657,11 @@ describe("metagame queries", { skip }, () => {
     assert.deepEqual(creatures.cards.map((entry) => entry.name), ["Delver of Secrets"]);
 
     const spells = await queries.listStapleCategory(30, "spells");
-    assert.equal(spells.cards[0].name, "Bitterblossom");
+    assert.equal(spells.cards[0].name, "Counterspell");
     assert.equal(spells.cards.some((entry) => entry.name === "Island"), false);
+
+    const enchantments = await queries.listStapleCategory(30, "enchantments");
+    assert.equal(enchantments.cards[0].name, "Bitterblossom");
 
     const lands = await queries.listStapleCategory(30, "lands");
     assert.equal(lands.cards[0].name, "Island");

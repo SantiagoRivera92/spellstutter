@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import type { ReactNode } from "react";
 import type { DeckView } from "@/lib/decks/types";
 import type { CardColor } from "@/lib/cards/types";
 import type { Folder } from "@/lib/supabase/types";
@@ -15,6 +16,9 @@ export function DeckHeader({
   canEdit,
   folders,
   archetypeLabel,
+  breadcrumb,
+  toolbar,
+  showVisibility = true,
 }: {
   view: DeckView;
   ownerName?: string;
@@ -22,6 +26,11 @@ export function DeckHeader({
   folders: Folder[];
   /** Display name for a non-MTGO archetype (e.g. an endstep slug), unlinked. */
   archetypeLabel?: string;
+  /** Replaces the first breadcrumb item. */
+  breadcrumb?: ReactNode;
+  /** Replaces the default deck toolbar. */
+  toolbar?: ReactNode;
+  showVisibility?: boolean;
 }) {
   const { deck, stats, cards } = view;
   const cover = deck.cover_art_url;
@@ -54,17 +63,18 @@ export function DeckHeader({
           <nav aria-label="Breadcrumb" className="mb-4 text-sm">
             <ol className="flex items-center gap-2 text-ink-black-200">
               <li>
-                {canEdit ? (
-                  <Link href="/decks" className="hover:text-ink-black-50">
-                    My decks
-                  </Link>
-                ) : ownerName ? (
-                  <Link href={`/users/${ownerName}`} className="hover:text-ink-black-50">
-                    @{ownerName}
-                  </Link>
-                ) : (
-                  "Decks"
-                )}
+                {breadcrumb ??
+                  (canEdit ? (
+                    <Link href="/decks" className="hover:text-ink-black-50">
+                      My decks
+                    </Link>
+                  ) : ownerName ? (
+                    <Link href={`/users/${ownerName}`} className="hover:text-ink-black-50">
+                      @{ownerName}
+                    </Link>
+                  ) : (
+                    "Decks"
+                  ))}
               </li>
               <li aria-hidden>/</li>
               <li className="truncate text-ink-black-50">{deck.name}</li>
@@ -86,7 +96,7 @@ export function DeckHeader({
                     </Link>
                   )
                 ) : null}
-                {deck.visibility !== "private" ? (
+                {showVisibility && deck.visibility !== "private" ? (
                   <Badge tone="outline" className="border-ink-black-600 text-ink-black-100">
                     {deck.visibility}
                   </Badge>
@@ -120,16 +130,18 @@ export function DeckHeader({
             </div>
 
             <div className="flex flex-col items-start gap-3 lg:items-end">
-              <DeckToolbar
-                deckId={deck.id}
-                deckName={deck.name}
-                coverOracleId={deck.cover_oracle_id}
-                folderId={deck.folder_id}
-                folders={folders}
-                cards={cards}
-                canEdit={canEdit}
-              />
-              {canEdit ? (
+              {toolbar ?? (
+                <DeckToolbar
+                  deckId={deck.id}
+                  deckName={deck.name}
+                  coverOracleId={deck.cover_oracle_id}
+                  folderId={deck.folder_id}
+                  folders={folders}
+                  cards={cards}
+                  canEdit={canEdit}
+                />
+              )}
+              {!toolbar && canEdit ? (
                 <VisibilityControl deckId={deck.id} visibility={deck.visibility} />
               ) : null}
             </div>

@@ -1,22 +1,24 @@
 "use client";
 
 import * as React from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronRight, Copy } from "lucide-react";
-import type { MetagameCardEntry, MetagameDeck } from "@/lib/metagame/types";
-import { CATEGORY_ORDER, categoryFor } from "@/lib/metagame/card-type";
+import type { MetagameDeck } from "@/lib/metagame/types";
+import type { DeckView as DeckViewData } from "@/lib/decks/types";
 import { cloneMetagameDeck } from "@/lib/decks/actions";
 import { ColorPips } from "@/components/cards/color-pips";
+import { DeckView } from "@/components/decks/deck-view";
 import { Button } from "@/components/ui/button";
 
-const PREVIEW_WIDTH = 200;
-const PREVIEW_HEIGHT = 279;
-
-export function DeckDetails({ deck }: { deck: MetagameDeck }) {
+export function DeckDetails({
+  deck,
+  view,
+}: {
+  deck: MetagameDeck;
+  view: DeckViewData;
+}) {
   const router = useRouter();
-  const [preview, setPreview] = React.useState<MetagameCardEntry | null>(null);
   const [cloning, startClone] = React.useTransition();
   const [cloneError, setCloneError] = React.useState<string | null>(null);
 
@@ -84,6 +86,13 @@ export function DeckDetails({ deck }: { deck: MetagameDeck }) {
             {deck.wins} wins
           </span>
         ) : null}
+        <Link
+          href={`/events/${deck.event_slug}/decks/${encodeURIComponent(deck.player)}`}
+          onClick={(event) => event.stopPropagation()}
+          className="text-xs font-medium text-primary underline-offset-4 hover:underline"
+        >
+          Open
+        </Link>
       </summary>
 
       <div className="px-3 pb-4 pt-1">
@@ -105,134 +114,8 @@ export function DeckDetails({ deck }: { deck: MetagameDeck }) {
         </div>
       </div>
 
-      <div className="grid gap-4 px-3 pb-4 pt-1 sm:grid-cols-2">
-        <MainDeck cards={deck.mainboard} count={mainCount} onHover={setPreview} />
-
-        <div>
-          <Sideboard cards={deck.sideboard} count={sideCount} onHover={setPreview} />
-
-          {/* Fixed preview slot, below the sideboard. */}
-          <div className="mt-4 flex min-h-[18.5rem] items-start justify-center rounded-lg border border-dashed border-border bg-card/50 p-3">
-            {preview?.image ? (
-              <Image
-                src={preview.image}
-                alt=""
-                width={PREVIEW_WIDTH}
-                height={PREVIEW_HEIGHT}
-                unoptimized
-                className="rounded-md border border-border"
-              />
-            ) : null}
-          </div>
-        </div>
-      </div>
+      <DeckView view={view} />
     </details>
   );
 }
 
-function MainDeck({
-  cards,
-  count,
-  onHover,
-}: {
-  cards: MetagameCardEntry[];
-  count: number;
-  onHover: (entry: MetagameCardEntry) => void;
-}) {
-  const groups = CATEGORY_ORDER.map((category) => ({
-    category,
-    cards: cards.filter((card) => categoryFor(card.type_line) === category),
-  })).filter((group) => group.cards.length > 0);
-
-  return (
-    <div>
-      <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        Main deck <span className="numeric">({count})</span>
-      </h3>
-      <div className="mt-1.5 space-y-2.5">
-        {groups.map((group) => (
-          <div key={group.category}>
-            <h4 className="text-[11px] font-medium text-muted-foreground/80">
-              {group.category}{" "}
-              <span className="numeric">
-                ({group.cards.reduce((sum, card) => sum + card.quantity, 0)})
-              </span>
-            </h4>
-            <CardList cards={group.cards} onHover={onHover} />
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function Sideboard({
-  cards,
-  count,
-  onHover,
-}: {
-  cards: MetagameCardEntry[];
-  count: number;
-  onHover: (entry: MetagameCardEntry) => void;
-}) {
-  return (
-    <div>
-      <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        Sideboard <span className="numeric">({count})</span>
-      </h3>
-      {cards.length ? (
-        <CardList className="mt-1.5" cards={cards} onHover={onHover} />
-      ) : (
-        <p className="mt-1.5 text-sm text-muted-foreground">No sideboard.</p>
-      )}
-    </div>
-  );
-}
-
-function CardList({
-  cards,
-  onHover,
-  className,
-}: {
-  cards: MetagameCardEntry[];
-  onHover: (entry: MetagameCardEntry) => void;
-  className?: string;
-}) {
-  return (
-    <ul className={`space-y-0.5 text-sm ${className ?? ""}`}>
-      {[...cards]
-        .sort((a, b) => a.name.localeCompare(b.name))
-        .map((card) => (
-          <li key={card.name} className="flex gap-2">
-            <span className="w-6 shrink-0 text-right numeric text-muted-foreground">
-              {card.quantity}
-            </span>
-            <CardNameLink card={card} onHover={onHover} />
-          </li>
-        ))}
-    </ul>
-  );
-}
-
-function CardNameLink({
-  card,
-  onHover,
-}: {
-  card: MetagameCardEntry;
-  onHover: (entry: MetagameCardEntry) => void;
-}) {
-  if (!card.oracle_id) {
-    return <span className="min-w-0">{card.name}</span>;
-  }
-
-  return (
-    <Link
-      href={`/cards/${card.oracle_id}`}
-      className="min-w-0 rounded-sm underline-offset-4 hover:text-primary hover:underline focus-visible:text-primary focus-visible:underline"
-      onMouseEnter={() => onHover(card)}
-      onFocus={() => onHover(card)}
-    >
-      {card.name}
-    </Link>
-  );
-}

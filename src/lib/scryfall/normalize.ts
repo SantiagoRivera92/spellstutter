@@ -42,6 +42,7 @@ export interface ScryfallCard {
   set_name?: string;
   collector_number?: string;
   released_at?: string;
+  artist?: string;
   image_uris?: ScryfallImageUris;
   card_faces?: ScryfallFace[];
   prices?: { usd?: string | null; usd_foil?: string | null };
@@ -122,6 +123,7 @@ export function scryfallToPrinting(card: ScryfallCard, now: string): Printing {
     collector_number: card.collector_number ?? "",
     rarity: card.rarity ?? "common",
     released_at: card.released_at ?? "",
+    artist: card.artist ?? null,
     image_uris: normalizeImages(card.image_uris),
     card_faces: printingFaces(card),
     prices: {
@@ -196,6 +198,7 @@ export function isBetterEarliestPrinting(
   incumbent: PrintingRank | null,
 ): boolean {
   if (candidate.promo) return false;
+  if (candidate.digital) return false;
   if (!incumbent) return true;
   return candidate.releasedAt < incumbent.releasedAt;
 }
@@ -222,6 +225,7 @@ export function isBetterMetagamePrinting(
   incumbent: PrintingRank | null,
 ): boolean {
   if (candidate.promo) return false;
+  if (candidate.digital) return false;
   if (candidate.rarity !== "common") return false;
   if (!incumbent) return true;
   return candidate.releasedAt < incumbent.releasedAt;

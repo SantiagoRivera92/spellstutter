@@ -208,6 +208,39 @@ export async function getPrintingsByIds(
     .toArray();
 }
 
+/**
+ * Cheapest non-digital printing per card. Printings without a USD price are
+ * ignored, so cards that only have foil/online copies keep their current
+ * printing instead of jumping to an unpriced one.
+ */
+export async function getCheapestPrintingIds(
+  oracleIds: string[],
+): Promise<Map<string, string>> {
+  const ids = [...new Set(oracleIds.filter(Boolean))];
+  if (!ids.length) return new Map();
+  const db = await getDb();
+  const rows = await db
+    .collection<Printing>(COLLECTIONS.printings)
+    .aggregate<{ _id: string; scryfall_id: string }>([
+      {
+        $match: {
+          oracle_id: { $in: ids },
+          digital: { $ne: true },
+          "prices.usd": { $ne: null, $gt: 0 },
+        },
+      },
+      { $sort: { "prices.usd": 1, released_at: -1, scryfall_id: 1 } },
+      {
+        $group: {
+          _id: "$oracle_id",
+          scryfall_id: { $first: "$scryfall_id" },
+        },
+      },
+    ])
+    .toArray();
+  return new Map(rows.map((row) => [row._id, row.scryfall_id]));
+}
+
 export interface PrintingPage {
   printings: Printing[];
   total: number;
@@ -219,6 +252,7 @@ export async function getPrintingsPage(
     limit?: number;
     offset?: number;
     preferScryfallId?: string | null;
+    query?: string | null;
   } = {},
 ): Promise<PrintingPage> {
   const db = await getDb();
@@ -228,12 +262,28 @@ export async function getPrintingsPage(
   );
   const offset = Math.max(0, options.offset ?? 0);
   const prefer = options.preferScryfallId;
+  const query = options.query?.trim() ?? "";
+
+  const match: Filter<Printing> = {
+    oracle_id: oracleId,
+    // Online-only (MTGO/Arena) printings never appear in the picker.
+    digital: { $ne: true },
+  };
+  if (query) {
+    const pattern = { $regex: escapeRegex(query), $options: "i" };
+    match.$or = [
+      { set: pattern },
+      { set_name: pattern },
+      { artist: pattern },
+      { collector_number: pattern },
+    ];
+  }
 
   const collection = db.collection<Printing>(COLLECTIONS.printings);
   const [printings, total] = await Promise.all([
     collection
       .aggregate<Printing>([
-        { $match: { oracle_id: oracleId } },
+        { $match: match },
         ...(prefer
           ? [
               {
@@ -255,7 +305,7 @@ export async function getPrintingsPage(
         { $project: { _id: 0, _preferred: 0 } },
       ])
       .toArray(),
-    collection.countDocuments({ oracle_id: oracleId }),
+    collection.countDocuments(match),
   ]);
 
   return { printings, total };
@@ -265,7 +315,7 @@ export async function getPrintings(oracleId: string): Promise<Printing[]> {
   const db = await getDb();
   return db
     .collection<Printing>(COLLECTIONS.printings)
-    .find({ oracle_id: oracleId }, WITHOUT_ID)
+    .find({ oracle_id: oracleId, digital: { $ne: true } }, WITHOUT_ID)
     .sort({ released_at: -1 })
     .toArray();
 }

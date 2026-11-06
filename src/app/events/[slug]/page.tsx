@@ -7,6 +7,7 @@ import { SetupNotice } from "@/components/setup-notice";
 import { DeckDetails } from "@/components/metagame/deck-details";
 import { Badge } from "@/components/ui/badge";
 import { isMongoConfigured } from "@/lib/env";
+import { getMetagameDeckViews } from "@/lib/metagame/deck-view";
 import { getEvent } from "@/lib/metagame/queries";
 import { archetypeName } from "@/lib/metagame/archetypes";
 import { eventSourceName } from "@/lib/metagame/event-source";
@@ -44,6 +45,13 @@ export default async function EventPage({
   const result = await getEvent(slug).catch(() => null);
   if (!result) notFound();
   const { event, decks } = result;
+  const deckViews = await getMetagameDeckViews(decks).catch(() => []);
+  const viewByKey = new Map(
+    decks.map((deck, index) => [
+      `${deck.event_slug}-${deck.player}`,
+      deckViews[index],
+    ]),
+  );
 
   const counts = new Map<string, number>();
   for (const deck of decks) {
@@ -155,12 +163,13 @@ export default async function EventPage({
                   </span>
                 </h2>
                 <div className="rounded-lg border border-border bg-card">
-                  {list.map((deck) => (
-                    <DeckDetails
-                      key={`${deck.event_slug}-${deck.player}`}
-                      deck={deck}
-                    />
-                  ))}
+                  {list.map((deck) => {
+                    const key = `${deck.event_slug}-${deck.player}`;
+                    const view = viewByKey.get(key);
+                    return view ? (
+                      <DeckDetails key={key} deck={deck} view={view} />
+                    ) : null;
+                  })}
                 </div>
               </section>
             ))}
@@ -174,9 +183,13 @@ export default async function EventPage({
               </span>
             </h2>
             <div className="rounded-lg border border-border bg-card">
-              {byPlacement.map((deck) => (
-                <DeckDetails key={`${deck.event_slug}-${deck.player}`} deck={deck} />
-              ))}
+              {byPlacement.map((deck) => {
+                const key = `${deck.event_slug}-${deck.player}`;
+                const view = viewByKey.get(key);
+                return view ? (
+                  <DeckDetails key={key} deck={deck} view={view} />
+                ) : null;
+              })}
             </div>
           </section>
         )}

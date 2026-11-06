@@ -78,6 +78,24 @@ export async function getEvent(
   return { event, decks };
 }
 
+export async function getEventDeck(
+  eventSlug: string,
+  player: string,
+): Promise<{ event: MetagameEvent; deck: MetagameDeck } | null> {
+  const db = await getDb();
+  const event = await db
+    .collection<MetagameEvent>(COLLECTIONS.events)
+    .findOne(withEventSources({ slug: eventSlug }), WITHOUT_ID);
+  if (!event) return null;
+
+  const deck = await db
+    .collection<MetagameDeck>(COLLECTIONS.decks)
+    .findOne(withDeckSources({ event_slug: eventSlug, player }), WITHOUT_ID);
+  if (!deck) return null;
+
+  return { event, deck };
+}
+
 export async function listDecksByArchetype(
   slug: string,
   limit = 25,
@@ -732,21 +750,34 @@ export interface StapleCard {
   inclusion: number;
 }
 
-export type StapleCategory = "creatures" | "spells" | "lands" | "sideboard";
+export type StapleCategory =
+  | "creatures"
+  | "spells"
+  | "artifacts"
+  | "enchantments"
+  | "lands"
+  | "sideboard";
 
 export interface StaplesResult {
   decks: number;
   creatures: StapleCard[];
-  noncreatures: StapleCard[];
+  spells: StapleCard[];
+  artifacts: StapleCard[];
+  enchantments: StapleCard[];
   lands: StapleCard[];
   sideboard: StapleCard[];
 }
 
-function stapleCategory(typeLine: string | null): "creature" | "noncreature" | "land" {
+function stapleCategory(
+  typeLine: string | null,
+): "creature" | "spell" | "artifact" | "enchantment" | "land" | "other" {
   const type = frontFace(typeLine).toLowerCase();
   if (type.includes("creature")) return "creature";
   if (type.includes("land")) return "land";
-  return "noncreature";
+  if (type.includes("instant") || type.includes("sorcery")) return "spell";
+  if (type.includes("artifact")) return "artifact";
+  if (type.includes("enchantment")) return "enchantment";
+  return "other";
 }
 
 interface StapleAggRow {
@@ -863,30 +894,30 @@ export async function listStaples(
   const main = toStapleCards(mainRows, totalDecks);
   const side = toStapleCards(sideRows, totalDecks);
 
-  const creatures = main
-    .filter((card) => stapleCategory(card.type_line) === "creature")
-    .sort(byDecks)
-    .slice(0, limit);
-  const noncreatures = main
-    .filter((card) => stapleCategory(card.type_line) === "noncreature")
-    .sort(byDecks)
-    .slice(0, limit);
-  const lands = main
-    .filter((card) => stapleCategory(card.type_line) === "land")
-    .sort(byDecks)
-    .slice(0, limit);
+  const byCategory = (category: ReturnType<typeof stapleCategory>) =>
+    main.filter((card) => stapleCategory(card.type_line) === category);
+
+  const creatures = byCategory("creature").sort(byDecks).slice(0, limit);
+  const spells = byCategory("spell").sort(byDecks).slice(0, limit);
+  const artifacts = byCategory("artifact").sort(byDecks).slice(0, limit);
+  const enchantments = byCategory("enchantment").sort(byDecks).slice(0, limit);
+  const lands = byCategory("land").sort(byDecks).slice(0, limit);
   const sideboard = side.sort(byDecks).slice(0, limit);
 
-  const [c, n, l, s] = await attachStapleArt([
+  const [c, sp, a, e, l, s] = await attachStapleArt([
     creatures,
-    noncreatures,
+    spells,
+    artifacts,
+    enchantments,
     lands,
     sideboard,
   ]);
   return {
     decks: totalDecks,
     creatures: c,
-    noncreatures: n,
+    spells: sp,
+    artifacts: a,
+    enchantments: e,
     lands: l,
     sideboard: s,
   };
@@ -911,7 +942,13 @@ export async function listStapleCategory(
   if (category === "creatures") {
     cards = cards.filter((card) => stapleCategory(card.type_line) === "creature");
   } else if (category === "spells") {
-    cards = cards.filter((card) => stapleCategory(card.type_line) === "noncreature");
+    cards = cards.filter((card) => stapleCategory(card.type_line) === "spell");
+  } else if (category === "artifacts") {
+    cards = cards.filter((card) => stapleCategory(card.type_line) === "artifact");
+  } else if (category === "enchantments") {
+    cards = cards.filter(
+      (card) => stapleCategory(card.type_line) === "enchantment",
+    );
   } else if (category === "lands") {
     cards = cards.filter((card) => stapleCategory(card.type_line) === "land");
   }

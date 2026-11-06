@@ -19,7 +19,22 @@ export function DeckView({ view }: { view: DeckViewData }) {
 
   const main = cards.filter((card) => card.board === "main");
   const side = cards.filter((card) => card.board === "side");
-  const previewImage = preview?.image_normal ?? deck.cover_art_url ?? null;
+  // Fall back to the cover card's full image (not its cropped art), so the
+  // default preview looks exactly like a hovered card.
+  const coverCard =
+    cards.find(
+      (card) =>
+        deck.cover_printing_id != null &&
+        card.printing_id === deck.cover_printing_id,
+    ) ??
+    cards.find(
+      (card) =>
+        deck.cover_oracle_id != null &&
+        card.oracle_id === deck.cover_oracle_id,
+    ) ??
+    main[0] ??
+    cards[0];
+  const previewImage = preview?.image_normal ?? coverCard?.image_normal ?? null;
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
@@ -64,7 +79,7 @@ export function DeckView({ view }: { view: DeckViewData }) {
                   width={488}
                   height={680}
                   unoptimized
-                  className="size-full object-cover"
+                  className="size-full object-contain"
                 />
               ) : (
                 <p className="flex h-full items-center justify-center px-4 text-center text-xs text-muted-foreground">

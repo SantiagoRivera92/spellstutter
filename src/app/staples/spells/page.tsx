@@ -39,14 +39,14 @@ export default async function SpellStaplesPage({
     <div className="mx-auto max-w-4xl px-4 py-8">
       <PageHeader
         title="Spell staples"
-        description={`Top 100 maindeck spells and artifacts over the last ${days} days, across ${decks.toLocaleString()} decklists.`}
+        description={`Top 100 maindeck instants and sorceries over the last ${days} days, across ${decks.toLocaleString()} decklists.`}
         actions={<MetagameWindowSelect value={days} />}
       />
       <div className="mt-4">
         <StapleTabs active="/staples/spells" />
       </div>
       <div className="mt-6">
-        <StapleList title="Spells & Artifacts" cards={cards} />
+        <StapleList title="Spells" cards={cards} />
       </div>
     </div>
   );

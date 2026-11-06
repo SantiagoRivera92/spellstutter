@@ -419,6 +419,7 @@ function boltPrinting(): Printing {
     collector_number: "161",
     rarity: "common",
     released_at: "1993-08-05",
+    artist: "Christopher Rush",
     image_uris: { small: null, normal: "bolt-print.jpg", large: null, art_crop: "bolt-print-art" },
     card_faces: null,
     prices: { usd: 2, usd_foil: null },

@@ -4,7 +4,9 @@ import { cn } from "@/lib/utils";
 const TABS = [
   { href: "/staples", label: "Overview" },
   { href: "/staples/creatures", label: "Creatures" },
-  { href: "/staples/spells", label: "Spells & Artifacts" },
+  { href: "/staples/spells", label: "Spells" },
+  { href: "/staples/artifacts", label: "Artifacts" },
+  { href: "/staples/enchantments", label: "Enchantments" },
   { href: "/staples/lands", label: "Lands" },
   { href: "/staples/sideboard", label: "Sideboard" },
 ];

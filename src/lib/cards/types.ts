@@ -80,6 +80,8 @@ export interface Printing {
   collector_number: string;
   rarity: string;
   released_at: string;
+  /** Artist credit, used to filter printings in the picker. */
+  artist: string | null;
   image_uris: CardImages;
   card_faces: PrintingFace[] | null;
   prices: CardPrice;

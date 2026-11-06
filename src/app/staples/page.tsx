@@ -35,7 +35,9 @@ export default async function StaplesPage({ searchParams }: PageProps<"/staples"
   const staples = await listStaples(days, 10).catch(() => ({
     decks: 0,
     creatures: [],
-    noncreatures: [],
+    spells: [],
+    artifacts: [],
+    enchantments: [],
     lands: [],
     sideboard: [],
   }));
@@ -51,16 +53,26 @@ export default async function StaplesPage({ searchParams }: PageProps<"/staples"
         <StapleTabs active="/staples" />
       </div>
 
-      <div className="mt-6 grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-6 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
         <StapleList
           title="Creatures"
           cards={staples.creatures}
           href="/staples/creatures"
         />
         <StapleList
-          title="Spells & Artifacts"
-          cards={staples.noncreatures}
+          title="Spells"
+          cards={staples.spells}
           href="/staples/spells"
+        />
+        <StapleList
+          title="Artifacts"
+          cards={staples.artifacts}
+          href="/staples/artifacts"
+        />
+        <StapleList
+          title="Enchantments"
+          cards={staples.enchantments}
+          href="/staples/enchantments"
         />
         <StapleList title="Lands" cards={staples.lands} href="/staples/lands" />
         <StapleList

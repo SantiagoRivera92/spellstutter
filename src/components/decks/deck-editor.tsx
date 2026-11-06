@@ -7,6 +7,7 @@ import Image from "next/image";
 import {
   ArrowLeft,
   ArrowLeftRight,
+  DollarSign,
   Layers,
   LayoutGrid,
   List,
@@ -22,6 +23,7 @@ import {
   importDecklist,
   removeDeckCard,
   updateDeckCard,
+  updateDeckToCheapest,
   type ActionResult,
 } from "@/lib/decks/actions";
 import { computeDeckStats, deriveCategory, groupByCategory } from "@/lib/decks/utils";
@@ -188,6 +190,20 @@ export function DeckEditor({ view, username }: DeckEditorProps) {
     });
   }
 
+  function handleCheapest() {
+    setNotice(null);
+    setError(null);
+    startTransition(async () => {
+      const result = await updateDeckToCheapest({ deckId: view.deck.id });
+      if (result.ok) {
+        setNotice("Updated every card to its cheapest paper printing.");
+        router.refresh();
+      } else {
+        setError(errorText(result.error));
+      }
+    });
+  }
+
   function handleDrop(event: React.DragEvent, board: Board) {
     event.preventDefault();
     setDropBoard(null);
@@ -261,6 +277,16 @@ export function DeckEditor({ view, username }: DeckEditorProps) {
           </p>
         </div>
         <div className="ml-auto flex items-center gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleCheapest}
+            disabled={pending || cards.length === 0}
+            title="Point every card at its cheapest paper printing"
+          >
+            <DollarSign className="size-4" aria-hidden />
+            Update to cheapest
+          </Button>
           <p className="text-sm numeric text-muted-foreground">
             {stats.main_count}/60 main · {stats.side_count} side
           </p>
@@ -336,6 +362,7 @@ export function DeckEditor({ view, username }: DeckEditorProps) {
                 onHover={setHovered}
                 onQuantity={handleQuantity}
                 onRemove={handleRemove}
+                onPrinting={setPrintingFor}
               />
               <DeckVisualBoard
                 title="Sideboard"
@@ -348,6 +375,7 @@ export function DeckEditor({ view, username }: DeckEditorProps) {
                 onHover={setHovered}
                 onQuantity={handleQuantity}
                 onRemove={handleRemove}
+                onPrinting={setPrintingFor}
               />
             </>
           ) : (

@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { Minus, Plus, Trash2 } from "lucide-react";
+import { Layers, Minus, Plus, Trash2 } from "lucide-react";
 import type { DeckCardView } from "@/lib/decks/types";
 import { groupByCategory } from "@/lib/decks/utils";
 import { cn } from "@/lib/utils";
@@ -25,6 +25,7 @@ export function DeckVisualBoard({
   onHover,
   onQuantity,
   onRemove,
+  onPrinting,
 }: {
   title: string;
   count: number;
@@ -36,6 +37,7 @@ export function DeckVisualBoard({
   onHover: (card: DeckCardView | null) => void;
   onQuantity: (card: DeckCardView, quantity: number) => void;
   onRemove: (card: DeckCardView) => void;
+  onPrinting: (card: DeckCardView) => void;
 }) {
   const groups = groupByCategory(cards);
 
@@ -126,6 +128,15 @@ export function DeckVisualBoard({
                           onClick={() => onQuantity(card, card.quantity + 1)}
                         >
                           <Plus className="size-3" aria-hidden />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-6 text-ink-black-50 hover:bg-ink-black-50/20 hover:text-ink-black-50"
+                          aria-label={`Choose printing for ${card.card_name}`}
+                          onClick={() => onPrinting(card)}
+                        >
+                          <Layers className="size-3" aria-hidden />
                         </Button>
                         <Button
                           variant="ghost"

@@ -34,6 +34,7 @@ function card(overrides: Partial<ScryfallCard> = {}): ScryfallCard {
     set_name: "Limited Edition Alpha",
     collector_number: "161",
     released_at: "1993-08-05",
+    artist: "Christopher Rush",
     image_uris: {
       small: "small.jpg",
       normal: "normal.jpg",
@@ -96,6 +97,7 @@ test("scryfallToPrinting normalizes printing fields", () => {
   assert.equal(printing.collector_number, "161");
   assert.equal(printing.rarity, "common");
   assert.equal(printing.released_at, "1993-08-05");
+  assert.equal(printing.artist, "Christopher Rush");
   assert.deepEqual(printing.prices, { usd: 1.5, usd_foil: null });
   assert.deepEqual(printing.finishes, ["nonfoil", "foil"]);
   assert.equal(printing.mtgo_id, 1234);
@@ -299,4 +301,5 @@ test("isBetterMetagamePrinting prefers the earliest common non-promo printing", 
     isBetterMetagamePrinting({ ...common, rarity: "uncommon" }, common),
     false,
   );
+  assert.equal(isBetterMetagamePrinting({ ...common, digital: true }, null), false);
 });

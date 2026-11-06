@@ -202,6 +202,11 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function declaredCharset(contentType: string | null): string {
+  const match = contentType?.match(/charset\s*=\s*"?([^";]+)"?/i);
+  return match?.[1]?.trim().toLowerCase() || "utf-8";
+}
+
 async function fetchHtml(url: string, init?: RequestInit): Promise<string> {
   const response = await fetch(url, {
     ...init,
@@ -210,7 +215,17 @@ async function fetchHtml(url: string, init?: RequestInit): Promise<string> {
   if (!response.ok) {
     throw new Error(`${response.status} ${response.statusText}: ${url}`);
   }
-  return response.text();
+  // mtgtop8 serves ISO-8859-1. `response.text()` would assume UTF-8 and turn
+  // names like "São Paulo" into replacement characters, so decode the bytes
+  // with the charset the server actually declared.
+  const buffer = await response.arrayBuffer();
+  try {
+    return new TextDecoder(
+      declaredCharset(response.headers.get("content-type")),
+    ).decode(buffer);
+  } catch {
+    return new TextDecoder("utf-8").decode(buffer);
+  }
 }
 
 function parseSearchPage(html: string): SearchEvent[] {
@@ -288,7 +303,7 @@ function parseDeckRefs(html: string, eventId: number): DeckRef[] {
   const pattern = new RegExp(
     `<div class=(?:chosen_tr|hover_tr)[^>]*>[\\s\\S]*?` +
       `<div[^>]*class=S14[^>]*>([^<]+)<\\/div>[\\s\\S]*?` +
-      `<a href=\\?e=${eventId}&(?:amp;)?d=(\\d+)&(?:amp;)?f=${FORMAT_CODE}[^>]*>([^<]+)<\\/a>[\\s\\S]*?` +
+      `<a href=\\?e=${eventId}&(?:amp;)?d=(\\d+)&(?:amp;)?f=${FORMAT_CODE}[^>]*>[^<]+<\\/a>[\\s\\S]*?` +
       `<a class=player[^>]*>([^<]+)<\\/a>`,
     "g",
   );
@@ -525,6 +540,7 @@ function normalizeDeck(
     event_date: event.date,
     player: ref.player || "Unknown",
     rank: rankMatch ? Number.parseInt(rankMatch[0], 10) : null,
+    decklist_id: String(ref.id),
     wins: null,
     losses: null,
     draws: null,
@@ -660,6 +676,12 @@ async function processEvent(
   if (options.dryRun) {
     console.log(
       `[mtgtop8] ${slug}: ${decks.length} decks, ${event.player_count} players (dry run)`,
+    );
+    console.log(
+      `  players: ${decks
+        .slice(0, 4)
+        .map((deck) => deck.player)
+        .join(", ")}`,
     );
     for (const row of summarize(decks)) {
       console.log(`  ${row.name}: ${row.decks}`);

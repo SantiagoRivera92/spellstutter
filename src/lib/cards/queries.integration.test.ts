@@ -53,6 +53,7 @@ function printing(overrides: Partial<Printing>): Printing {
     collector_number: "1",
     rarity: "common",
     released_at: "2026-01-01",
+    artist: null,
     image_uris: {
       small: null,
       normal: null,

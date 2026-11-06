@@ -1,7 +1,7 @@
 import { normalizeName } from "@/lib/cards/normalize-name";
 import type { CardColor } from "@/lib/cards/types";
 
-export const CLASSIFICATION_VERSION = "pauper-heuristics-v5";
+export const CLASSIFICATION_VERSION = "pauper-heuristics-v12";
 
 /**
  * Cards that should not contribute to a deck's archetype color identity even
@@ -29,6 +29,8 @@ export interface ArchetypeRule {
   requires?: string[];
   /** At least one of these cards must be present. */
   requiresAny?: string[];
+  /** None of these cards may be present. */
+  excludes?: string[];
   min_matches: number;
   /** Deck color identity must include every one of these colors. */
   requiresColors?: CardColor[];
@@ -236,7 +238,6 @@ export const ARCHETYPE_RULES: ArchetypeRule[] = [
     requiresAny: [
       "tolarian terror",
       "cryptic serpent",
-      "the modern age",
     ],
     requiresColors: ["U", "B"],
     excludesColors: ["W", "R", "G"],
@@ -489,6 +490,7 @@ export const ARCHETYPE_RULES: ArchetypeRule[] = [
     ],
     min_matches: 3,
     requiresColors: ["W"],
+    excludes: ["clowning around"],
   },
 
   // --- Naya Bully -------------------------------------------------------
@@ -670,7 +672,7 @@ export const ARCHETYPE_RULES: ArchetypeRule[] = [
   },
   {
     slug: "wall-spy-combo",
-    name: "Wall Spy Combo",
+    name: "Walls Spy Combo",
     signature: [
       "balustrade spy",
       "dread return",
@@ -760,28 +762,30 @@ export const ARCHETYPE_RULES: ArchetypeRule[] = [
       "fanged flames",
       "bender's waterskin",
       "azure fleet admiral",
+      "breath weapon",
+      "fling",
+      "serpentine curve",
+      "augur of bolas",
     ],
-    // Murmuring Mystic is the win condition; the Izzet Faeries tempo deck is
-    // caught by its own creature gate before it can out-score this on the
-    // shared Skred / Bolt / Counterspell shell. The gate below excludes the
-    // Tolarian Terror deck, which also plays Mystic + Skred.
-    requires: ["murmuring mystic"],
+    // Skred is the anchor. The payoff gate keeps Izzet Terror and Izzet
+    // Faeries, which share the same Skred / Bolt / Counterspell shell, out.
+    requires: ["skred"],
     requiresAny: [
-      "cryogen relic",
+      "murmuring mystic",
+      "serpentine curve",
+      "fling",
+      "breath weapon",
       "hard evidence",
       "omen of the sea",
-      "abjure",
+      "behold the multiverse",
+      "fanged flames",
       "bender's waterskin",
-      "logic knot",
-      "mana leak",
-      "negate",
-      "deduce",
-      "oliphaunt",
-      "exclude",
+      "azure fleet admiral",
     ],
     min_matches: 4,
     requiresColors: ["U", "R"],
     excludesColors: ["W", "B", "G"],
+    excludes: ["tolarian terror", "cryptic serpent"],
   },
 
   // --- Ephemerate, named by color identity ------------------------------
@@ -911,6 +915,22 @@ export const ARCHETYPE_RULES: ArchetypeRule[] = [
     excludesColors: ["W", "R", "G"],
   },
   {
+    // Control shells built around Mystic/Thorn/Teachings or Stream of Thought.
+    slug: "ub-control", name: "Dimir Control", signature: [
+      "murmuring mystic", "campfire", "augur of bolas",
+      "thorn of the black rose", "agony warp", "brainstorm", "cast down",
+      "counterspell", "crypt incursion", "lorien revealed",
+      "mystical teachings", "ponder", "snuff out", "stream of thought",
+      "suffocating fumes", "kami of jealous thirst",
+    ], requiresAny: ["murmuring mystic", "thorn of the black rose",
+      "mystical teachings", "stream of thought", "campfire"],
+    min_matches: 5, requiresColors: ["U", "B"], excludesColors: ["W", "R", "G"],
+    excludes: ["tolarian terror", "cryptic serpent", "spellstutter sprite",
+      "faerie seer", "ninja of the deep hours", "moon-circuit hacker", "abjure",
+      "ichor wellspring", "lembas", "fanatical offering", "black mage's rod",
+      "exhume"]
+  },
+  {
     slug: "mono-black", name: "Mono-Black Control", signature: [
       "defile", "crypt rats", "chittering rats", "phyrexian rager",
       "sign in blood", "unearth", "cuombajj witches",
@@ -950,8 +970,13 @@ export const ARCHETYPE_RULES: ArchetypeRule[] = [
     slug: "walls", name: "Walls Combo", signature: [
       "axebane guardian", "overgrown battlement", "wall of roots",
       "saruli caretaker", "lead the stampede", "freed from the real",
-      "drift of phantasms", "wall of tanglecord",
-    ], requires: ["axebane guardian"], min_matches: 2
+      "drift of phantasms", "wall of tanglecord", "quirion ranger",
+      "generous ent", "avenging hunter", "sagu wildling", "land grant",
+      "winding way", "arbor elf", "tinder wall", "sunscape familiar",
+    ], requiresAny: ["axebane guardian", "overgrown battlement", "wall of roots",
+      "saruli caretaker"], excludes: ["balustrade spy", "essence warden",
+      "soul warden", "soul's attendant", "marauding blight-priest",
+      "blood researcher"], min_matches: 3
   },
   {
     slug: "gond", name: "Midnight Gond Combo", signature: [
@@ -985,7 +1010,25 @@ export const ARCHETYPE_RULES: ArchetypeRule[] = [
     slug: "hot-dogs", name: "Hot Dogs", signature: [
       "kiln fiend", "temur battle rage", "lightning bolt", "brute force",
       "assault strobe", "invigorated rampage", "reckless charge",
-    ], min_matches: 3
+      "mutagenic growth", "apostle's blessing", "slip through space",
+      "manamorphose", "lava dart", "festival crasher", "crackling cyclops",
+      "crash through",
+    ], requires: ["kiln fiend"], min_matches: 3,
+    excludes: ["burning prophet", "warlord's fury", "red mage's rapier",
+      "ancestral anger"],
+  },
+  {
+    // Blue/black splash Kiln Fiend shells with Nivix/Immolating Souleater.
+    // Kept separate from the Ancestral Anger Blitz shell above.
+    slug: "hot-dogs", name: "Hot Dogs", signature: [
+      "kiln fiend", "apostle's blessing", "assault strobe",
+      "mutagenic growth", "manamorphose", "nivix cyclops",
+      "immolating souleater", "crackling cyclops", "artful dodge",
+      "enter the enigma", "slip through space",
+    ], requires: ["kiln fiend", "apostle's blessing",
+      "mutagenic growth", "manamorphose"], requiresAny: ["nivix cyclops",
+      "immolating souleater", "crackling cyclops", "artful dodge",
+      "enter the enigma", "slip through space"], min_matches: 4
   },
   {
     slug: "mono-black-devotion", name: "Mono-Black Devotion", signature: [
@@ -1081,11 +1124,18 @@ export const ARCHETYPE_RULES: ArchetypeRule[] = [
     min_matches: 3, requiresColors: ["B", "R", "G"]
   },
   {
-    slug: "mono-black-sacrifice", name: "Mono-Black Sacrifice", signature: [
+    slug: "mono-black-sacrifice", name: "Aristocrats", signature: [
       "carrion feeder", "mortician beetle", "bloodthrone vampire",
       "nested shambler", "village rites", "supernatural stamina",
-      "infestation sage", "perigee beckoner",
-    ], min_matches: 3, maxColors: ["B"]
+      "infestation sage", "perigee beckoner", "accursed marauder",
+      "greedy freebooter", "shambling ghast", "mesmeric fiend",
+      "rotten reunion", "corrupted conviction", "crypt rats",
+      "culling the weak", "entourage of trest", "nezumi linkbreaker",
+      "unearth",
+    ], requiresAny: ["carrion feeder", "mortician beetle", "bloodthrone vampire",
+      "nested shambler", "accursed marauder", "greedy freebooter",
+      "shambling ghast"], min_matches: 3, maxColors: ["W", "B", "R", "G"],
+    excludes: ["putrid goblin"]
   },
   {
     slug: "mono-red-blitz", name: "Mono-Red Blitz", signature: [
@@ -1118,6 +1168,283 @@ export const ARCHETYPE_RULES: ArchetypeRule[] = [
       "knight of wundagore", "servant of the scale", "skarrgan pit-skulk",
       "sunshower druid",
     ], min_matches: 3, requiresColors: ["G"], maxColors: ["G"]
+  },
+  {
+    slug: "slivers", name: "Slivers", signature: [
+      "gemhide sliver", "muscle sliver", "predatory sliver", "sinew sliver",
+      "plated sliver", "sidewinder sliver", "sentinel sliver", "virulent sliver",
+      "manaweft sliver", "lead the stampede", "winding way",
+    ], requiresAny: ["gemhide sliver", "muscle sliver", "predatory sliver",
+      "sinew sliver", "plated sliver"], min_matches: 4
+  },
+  {
+    slug: "pizza-combo", name: "Pizza Combo", signature: [
+      "guac & marshmallow pizza", "devoted druid", "banishing knack",
+      "retraction helix", "cryogen relic", "perilous research",
+      "khalni garden", "abundant growth", "mystical teachings",
+      "bountiful landscape", "writhing chrysalis", "preordain", "dispel",
+      "tamiyo's safekeeping", "first day of class", "muddle the mixture",
+    ], requires: ["devoted druid", "guac & marshmallow pizza"],
+    requiresAny: ["banishing knack", "retraction helix"], min_matches: 3
+  },
+  {
+    slug: "mono-black-burn", name: "Mono-Black Burn", signature: [
+      "bump in the night", "tyrant's choice", "vampire's kiss",
+      "black mage's rod", "fruit of tizerus", "serrated scorpion",
+      "alms of the vein", "okiba reckoner raid", "sovereign's bite",
+      "raven of fell omens", "minion missile", "night's whisper",
+      "sign in blood",
+    ], requiresAny: ["bump in the night", "tyrant's choice",
+      "vampire's kiss", "black mage's rod"], min_matches: 3,
+    requiresColors: ["B"], maxColors: ["B", "R"],
+    excludes: ["blightning", "lightning bolt", "chain lightning",
+      "galvanic blast", "fireblast", "reforge the soul"]
+  },
+  {
+    slug: "gruul-aggro", name: "Gruul Aggro", signature: [
+      "cloakwood swarmkeeper", "glimmer bairn", "hooting mandrills",
+      "malevolent rumble", "many partings", "writhing chrysalis",
+      "bakersbane duo", "rancor", "ram through", "cache grab",
+      "generous ent", "ice cream kitty", "glimpse the impossible",
+      "burning-tree emissary", "fling",
+    ], requiresAny: ["cloakwood swarmkeeper", "glimmer bairn", "hooting mandrills",
+      "bakersbane duo"], min_matches: 3, requiresColors: ["R", "G"],
+    excludesColors: ["W", "U", "B"]
+  },
+  {
+    slug: "golgari-lifegain", name: "Golgari Lifegain", signature: [
+      "essence warden", "marauding blight-priest", "pest mascot",
+      "blood researcher", "deathgreeter", "bogwater lumaret",
+      "follow the lumarets", "hunt for specimens", "sagu wildling",
+      "winding way", "lead the stampede", "unflinching hortimancer",
+      "jaspera sentinel", "soul warden", "soul's attendant",
+      "hinterland sanctifier",
+    ], requiresAny: ["essence warden", "marauding blight-priest",
+      "pest mascot", "blood researcher"], min_matches: 4,
+    requiresColors: ["B", "G"], excludesColors: ["W"]
+  },
+  {
+    slug: "gruul-landfall", name: "Gruul Landfall", signature: [
+      "adventuring gear", "akoum hellhound", "plated geopede",
+      "crop rotation", "harrow", "grazing gladehart",
+      "makindi sliderunner", "sabotender", "sheltering landscape",
+      "lightning bolt", "malevolent rumble",
+    ], requiresAny: ["adventuring gear", "plated geopede", "makindi sliderunner",
+      "akoum hellhound"], min_matches: 3, requiresColors: ["R", "G"],
+    excludesColors: ["W", "U", "B"]
+  },
+  {
+    slug: "izzet-land-bounce", name: "Izzet Land Bounce", signature: [
+      "boomerang", "eye of nowhere", "hoodwink", "fire / ice",
+      "force spike", "solfatara", "tolarian terror", "turf wound",
+      "breath weapon", "lorien revealed", "augur of bolas",
+      "counterspell", "brainstorm", "lightning bolt", "ash barrens",
+    ], requiresAny: ["boomerang", "eye of nowhere", "hoodwink", "solfatara",
+      "turf wound"], min_matches: 3, requiresColors: ["U", "R"],
+    excludesColors: ["W", "B", "G"]
+  },
+  {
+    slug: "zubera-combo", name: "Zubera Combo", signature: [
+      "ashen-skin zubera", "dripping-tongue zubera", "ember-fist zubera",
+      "floating-dream zubera", "silent-chant zubera", "ashnod's altar",
+      "dimir infiltrator", "drift of phantasms", "energy refractor",
+      "muddle the mixture", "foreboding landscape", "malevolent rumble",
+    ], requiresAny: ["ashen-skin zubera", "dripping-tongue zubera",
+      "ember-fist zubera", "floating-dream zubera", "silent-chant zubera"],
+    min_matches: 3
+  },
+  {
+    slug: "simic-tokens", name: "Simic Tokens", signature: [
+      "gene pollinator", "keep watch", "nest invader", "rites of initiation",
+      "scatter the seeds", "khalni garden", "writhing chrysalis",
+      "jaspera sentinel", "pond prophet", "troublemaker ouphe",
+      "sagu wildling", "abundant growth", "simian spirit guide",
+    ], requiresAny: ["gene pollinator", "keep watch", "rites of initiation",
+      "scatter the seeds"], min_matches: 3, requiresColors: ["G", "U"]
+  },
+  {
+    slug: "hare-apparent-gw", name: "Green-White Hare Apparent", signature: [
+      "hare apparent", "charge", "echoing courage", "might of the masses",
+      "eagles of the north", "radiant grove", "winding way",
+      "you hear something on watch", "fog", "glasses of urza",
+    ], requires: ["hare apparent"], min_matches: 2,
+    requiresColors: ["W", "G"]
+  },
+  {
+    slug: "abzan-lifegain", name: "Abzan Lifegain", signature: [
+      "essence warden", "soul warden", "soul's attendant",
+      "marauding blight-priest", "pest mascot", "blood researcher",
+      "hinterland sanctifier", "bogwater lumaret", "deathgreeter",
+      "unflinching hortimancer", "jaspera sentinel", "loam dryad",
+      "arbor elf", "quirion ranger", "saruli caretaker", "land grant",
+      "lead the stampede", "winding way", "follow the lumarets",
+      "sagu wildling", "generous ent",
+    ], requiresAny: ["essence warden", "soul warden", "soul's attendant",
+      "marauding blight-priest", "pest mascot", "blood researcher",
+      "hinterland sanctifier"], min_matches: 4,
+    requiresColors: ["W", "B", "G"], maxColors: ["W", "B", "G"]
+  },
+  {
+    slug: "altar-combo", name: "Altar Combo", signature: [
+      "ashnod's altar", "myr retriever", "cauldron familiar", "golden egg",
+      "lembas", "nutrient block", "molten gatekeeper", "clockwork fox",
+      "many partings", "malevolent rumble", "ancient stirrings",
+      "eviscerator's insight", "cache grab", "omni-cheese pizza",
+      "instant ramen", "foundry inspector", "scrapwork mutt",
+      "khalni garden", "holdout settlement", "survivors' encampment",
+    ], requires: ["ashnod's altar"], requiresAny: ["myr retriever",
+      "cauldron familiar"], min_matches: 4
+  },
+  {
+    slug: "dimir-eidolon", name: "Dimir Eidolon", signature: [
+      "enigma eidolon", "entropic eidolon", "shipwreck sifters",
+      "abandon attachments", "dihada's ploy", "sneaky snacker", "foil",
+      "the modern age", "vampire hounds", "spectral snatcher",
+      "tortured existence", "agony warp", "snuff out", "lorien revealed",
+      "brainstorm", "mob lookout", "dimir aqueduct", "ice tunnel",
+    ], requires: ["enigma eidolon", "entropic eidolon"], min_matches: 4,
+    requiresColors: ["U", "B"], excludesColors: ["W", "R", "G"]
+  },
+  {
+    slug: "temur-cascade", name: "Temur Cascade", signature: [
+      "annoyed altisaur", "boarding party", "mulldrifter",
+      "writhing chrysalis", "arboreal grazer", "growth spiral", "explore",
+      "snap", "brainstorm", "izzet boilerworks", "simic growth chamber",
+      "bountiful landscape", "lorien revealed", "compulsive research",
+      "magmatic sinkhole", "utter insignificance", "avenging hunter",
+      "eldrazi repurposer", "generous ent",
+    ], requires: ["annoyed altisaur", "boarding party"], requiresAny: [
+      "mulldrifter", "writhing chrysalis"], min_matches: 4,
+    requiresColors: ["U", "R", "G"], excludesColors: ["W", "B"],
+    excludes: ["skred"]
+  },
+  {
+    slug: "orzhov-lifegain", name: "Orzhov Lifegain", signature: [
+      "breathless knight", "cauldron familiar", "lunarch veteran",
+      "suture priest", "soul warden", "soul's attendant",
+      "marauding blight-priest", "unflinching hortimancer", "unearth",
+      "village rites", "reckoner's bargain", "lembas", "carrot cake",
+      "recommission", "mire triton", "militia bugler",
+    ], requiresAny: ["suture priest", "soul warden", "soul's attendant",
+      "marauding blight-priest"], min_matches: 4,
+    requiresColors: ["W", "B"], maxColors: ["W", "B"],
+    excludes: ["basilisk gate", "sacred cat", "black dragon gate",
+      "citadel gate"]
+  },
+  {
+    slug: "orzhov-aggro", name: "Orzhov Aggro", signature: [
+      "breathless knight", "cauldron familiar", "unearth", "village rites",
+      "recommission", "carrot cake", "lembas", "fanatical offering",
+      "costly plunder", "accursed marauder", "outlaw medic",
+      "militia bugler", "mire triton", "raffine's informant",
+      "shattered acolyte", "ferocity of the hunt", "unflinching hortimancer",
+      "orzhov basilica", "scoured barrens",
+    ], requiresAny: ["breathless knight", "cauldron familiar", "unearth"],
+    min_matches: 4, requiresColors: ["W", "B"], maxColors: ["W", "B"],
+    excludes: ["suture priest", "soul warden", "soul's attendant",
+      "marauding blight-priest", "basilisk gate", "sacred cat",
+      "black dragon gate", "citadel gate"]
+  },
+  {
+    slug: "mono-red-rally", name: "Mono-Red Rally", signature: [
+      "rally at the hornburg", "clockwork percussionist",
+      "goblin bushwhacker", "goblin tomb raider", "great furnace",
+      "voldaren epicure", "burning-tree emissary", "chain lightning",
+      "end the festivities", "lightning bolt", "wrenn's resolve",
+      "manamorphose", "suplex",
+    ], requires: ["rally at the hornburg"], min_matches: 1,
+    requiresColors: ["R"], maxColors: ["R"],
+    excludes: ["experimental synthesizer"]
+  },
+  {
+    slug: "mono-white-clowns", name: "Mono-White Clowns", signature: [
+      "clowning around", "thraben inspector", "novice inspector",
+      "leonardo, big brother", "magitek infantry",
+      "mechanized ninja cavalry", "salt road packbeast",
+      "search party captain", "ancient den", "dispatch",
+      "gather the townsfolk", "raise the alarm", "ramosian rally",
+    ], requires: ["clowning around"], min_matches: 1,
+    requiresColors: ["W"], maxColors: ["W"]
+  },
+  {
+    slug: "esper-faeries", name: "Esper Faeries", signature: [
+      "spellstutter sprite", "faerie seer", "faerie miscreant",
+      "ninja of the deep hours", "moon-circuit hacker", "augur of bolas",
+      "counterspell", "brainstorm", "snuff out", "castigate",
+      "baleful strix", "bola slinger", "thorn of the black rose",
+      "mukotai ambusher", "seething landscape",
+    ], requiresAny: ["spellstutter sprite", "faerie seer",
+      "ninja of the deep hours", "moon-circuit hacker"], min_matches: 3,
+    requiresColors: ["W", "U", "B"], excludesColors: ["R", "G"]
+  },
+  {
+    slug: "sultai-control", name: "Sultai Control", signature: [
+      "abjure", "coiling oracle", "wormfang drake",
+      "forecasting fortune teller", "murmuring mystic",
+      "hard evidence", "cryogen relic", "counterspell", "brainstorm",
+      "lorien revealed", "snuff out", "pulse of murasa",
+      "azure fleet admiral", "troublemaker ouphe", "paradox gardens",
+      "simic growth chamber",
+    ], requiresAny: ["abjure", "coiling oracle", "wormfang drake",
+      "forecasting fortune teller"], min_matches: 3,
+    requiresColors: ["U", "B", "G"], excludesColors: ["W", "R"]
+  },
+  {
+    slug: "dimir-artifact-control", name: "Dimir Artifact Control", signature: [
+      "ichor wellspring", "lembas", "fanatical offering",
+      "eviscerator's insight", "campfire", "cast down", "counterspell",
+      "snuff out", "mystical teachings", "stream of thought", "ice tunnel",
+      "dimir aqueduct", "seat of the synod", "vault of whispers",
+    ], requires: ["ichor wellspring", "lembas", "fanatical offering",
+      "eviscerator's insight"], min_matches: 4,
+    requiresColors: ["U", "B"], excludesColors: ["W", "R", "G"],
+    excludes: ["thoughtcast", "myr enforcer", "frogmite", "galvanic blast",
+      "krark-clan shaman", "glint hawk", "kor skyfisher", "dispatch",
+      "sojourner's companion", "blood fountain", "experimental synthesizer",
+      "spellstutter sprite", "faerie seer", "ninja of the deep hours",
+      "moon-circuit hacker", "sunscape familiar", "nightscape familiar"]
+  },
+  {
+    // Artifact recursion and Black Mage's Rod controls.
+    slug: "dimir-artifact-control", name: "Dimir Artifact Control", signature: [
+      "black mage's rod", "dream stalker", "refurbished familiar",
+      "tandem lookout", "sewer-veillance cam", "cryogen relic",
+      "grim bauble", "hopeless nightmare", "tithing blade",
+      "augur of bolas", "sneaky snacker", "cast down", "counterspell",
+      "snuff out", "brainstorm", "lorien revealed", "ice tunnel",
+      "dimir aqueduct",
+    ], requires: ["black mage's rod"], requiresAny: ["dream stalker",
+      "refurbished familiar", "tandem lookout", "sewer-veillance cam"],
+    min_matches: 4, requiresColors: ["U", "B"], excludesColors: ["W", "R", "G"],
+    excludes: ["thoughtcast", "myr enforcer", "frogmite", "galvanic blast",
+      "krark-clan shaman", "glint hawk", "kor skyfisher", "dispatch",
+      "sojourner's companion", "blood fountain", "experimental synthesizer",
+      "spellstutter sprite", "faerie seer", "ninja of the deep hours",
+      "moon-circuit hacker", "sunscape familiar", "nightscape familiar"]
+  },
+  {
+    slug: "dimir-serpentine-curve", name: "Dimir Serpentine Curve", signature: [
+      "serpentine curve", "accumulated knowledge", "pieces of the puzzle",
+      "frantic inventory", "wretched banquet", "drown in sorrow",
+      "rite of consumption", "sneaky snacker", "brainstorm", "cast down",
+      "counterspell", "foil", "deep analysis", "crypt incursion",
+      "lorien revealed", "ash barrens", "ice tunnel", "dimir aqueduct",
+    ], requires: ["serpentine curve"], min_matches: 5,
+    requiresColors: ["U", "B"], excludesColors: ["W", "R", "G"]
+  },
+  {
+    slug: "dimir-abjure", name: "Dimir Abjure", signature: [
+      "abjure", "murmuring mystic", "sneaky snacker",
+      "spellstutter sprite", "hard evidence", "cryogen relic",
+      "dihada's ploy", "eviscerator's insight", "cast down",
+      "counterspell", "lorien revealed", "nihil spellbomb",
+    ], requires: ["abjure"], min_matches: 3,
+    requiresColors: ["U", "B"], excludesColors: ["W", "R", "G"],
+    excludes: ["thoughtcast", "myr enforcer", "frogmite", "galvanic blast",
+      "krark-clan shaman", "glint hawk", "kor skyfisher", "dispatch",
+      "sojourner's companion", "blood fountain", "experimental synthesizer",
+      "sunscape familiar", "nightscape familiar", "ghostly flicker",
+      "archaeomancer"]
   },
 ];
 
@@ -1179,6 +1506,9 @@ export function classifyDeck(
       rule.requiresAny &&
       !rule.requiresAny.some((name) => present.has(normalizeName(name)))
     ) {
+      continue;
+    }
+    if (rule.excludes?.some((name) => present.has(normalizeName(name)))) {
       continue;
     }
     if (!matchesColors(rule, identity)) continue;

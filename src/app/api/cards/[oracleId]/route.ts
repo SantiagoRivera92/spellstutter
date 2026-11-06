@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { getCardByOracleId, getPrintingsPage } from "@/lib/cards/queries";
 import { MAX_PRINTINGS_PAGE_SIZE, PRINTINGS_PAGE_SIZE } from "@/lib/cards/types";
+import { getFavoritePrintingId } from "@/lib/decks/favorites";
 import { isMongoConfigured } from "@/lib/env";
 import { rateLimitResponse } from "@/lib/http/rate-limit";
 
@@ -17,6 +18,7 @@ const querySchema = z.object({
     .default(PRINTINGS_PAGE_SIZE),
   offset: z.coerce.number().int().min(0).max(10_000).optional().default(0),
   prefer: z.string().max(100).optional(),
+  q: z.string().max(100).optional(),
 });
 
 export async function GET(
@@ -45,13 +47,15 @@ export async function GET(
 
   const { oracleId } = await context.params;
   try {
-    const [card, page] = await Promise.all([
+    const [card, page, favoritePrintingId] = await Promise.all([
       getCardByOracleId(oracleId),
       getPrintingsPage(oracleId, {
         limit: parsed.data.limit,
         offset: parsed.data.offset,
         preferScryfallId: parsed.data.prefer,
+        query: parsed.data.q,
       }),
+      getFavoritePrintingId(oracleId).catch(() => null),
     ]);
     if (!card) {
       return Response.json({ error: "not_found" }, { status: 404 });
@@ -62,6 +66,7 @@ export async function GET(
       total: page.total,
       offset: parsed.data.offset,
       limit: parsed.data.limit,
+      favoritePrintingId,
     });
   } catch (error) {
     console.error("[api/cards/:oracleId]", error);

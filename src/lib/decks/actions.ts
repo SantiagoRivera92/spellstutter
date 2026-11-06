@@ -8,6 +8,8 @@ import {
   getCardByOracleId,
   getCardsByNames,
   getCardsByOracleIds,
+  getCheapestPrintingIds,
+  getPrintingsByIds,
 } from "@/lib/cards/queries";
 import { normalizeName } from "@/lib/cards/normalize-name";
 import { isPauperLegal } from "@/lib/cards/types";
@@ -437,6 +439,21 @@ type LegalityCheck =
  * catalog being unreachable, so the UI reports the real reason instead of
  * blaming the card.
  */
+/** The user's favourite printing for a card; missing table means no favourite. */
+async function favoritePrintingId(
+  supabase: SupabaseClient,
+  userId: string,
+  oracleId: string,
+): Promise<string | null> {
+  const { data } = await supabase
+    .from("favorite_printings")
+    .select("printing_id")
+    .eq("user_id", userId)
+    .eq("oracle_id", oracleId)
+    .maybeSingle();
+  return (data as { printing_id: string } | null)?.printing_id ?? null;
+}
+
 async function checkPauperLegality(oracleId: string): Promise<LegalityCheck> {
   if (!isMongoConfigured()) return { status: "unavailable" };
   try {
@@ -479,11 +496,16 @@ export async function addDeckCard(input: {
   if (legality.status !== "legal") {
     return { ok: false, error: "not_pauper_legal" };
   }
-  const printingId = input.printingId ?? legality.printingId;
+  const favoriteId = await favoritePrintingId(
+    ctx.supabase,
+    ctx.session.id,
+    input.oracleId,
+  );
+  const printingId = input.printingId ?? favoriteId ?? legality.printingId;
 
   const { data: existing } = await ctx.supabase
     .from("deck_cards")
-    .select("id,quantity")
+    .select("id,quantity,printing_id")
     .eq("deck_id", input.deckId)
     .eq("board", board.data)
     .eq("oracle_id", input.oracleId)
@@ -491,11 +513,25 @@ export async function addDeckCard(input: {
 
   let row: DeckCard;
   if (existing) {
-    const current = (existing as { id: string; quantity: number }).quantity;
+    const current = existing as {
+      id: string;
+      quantity: number;
+      printing_id: string | null;
+    };
+    const patch: Record<string, unknown> = {
+      quantity: Math.min(999, current.quantity + quantity),
+    };
+    // A new copy keeps an explicitly chosen printing, but fills in the
+    // favourite (or an explicitly requested one) when the deck already had the
+    // card without a printing.
+    if (!current.printing_id) {
+      const preferred = input.printingId ?? favoriteId;
+      if (preferred) patch.printing_id = preferred;
+    }
     const { data, error } = await ctx.supabase
       .from("deck_cards")
-      .update({ quantity: Math.min(999, current + quantity) })
-      .eq("id", (existing as { id: string }).id)
+      .update(patch)
+      .eq("id", current.id)
       .select("*")
       .single();
     if (error) return { ok: false, error: error.message };
@@ -570,6 +606,86 @@ export async function updateDeckCard(input: {
   return { ok: true };
 }
 
+/**
+ * Mark a printing as the user's favourite for its card, or clear it when
+ * `printingId` is null. The printing must belong to the card.
+ */
+export async function setFavoritePrinting(input: {
+  oracleId: string;
+  printingId: string | null;
+}): Promise<ActionResult> {
+  const ctx = await context();
+  if (!ctx.ok) return { ok: false, error: ctx.error };
+
+  if (input.printingId == null) {
+    const { error } = await ctx.supabase
+      .from("favorite_printings")
+      .delete()
+      .eq("user_id", ctx.session.id)
+      .eq("oracle_id", input.oracleId);
+    if (error) return { ok: false, error: error.message };
+    return { ok: true };
+  }
+
+  const printings = await getPrintingsByIds([input.printingId]).catch(() => []);
+  const printing = printings[0];
+  if (!printing || printing.oracle_id !== input.oracleId) {
+    return { ok: false, error: "printing_not_found" };
+  }
+
+  const { error } = await ctx.supabase.from("favorite_printings").upsert(
+    {
+      user_id: ctx.session.id,
+      oracle_id: input.oracleId,
+      printing_id: input.printingId,
+    },
+    { onConflict: "user_id,oracle_id" },
+  );
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+/** Point every card in the deck at its cheapest non-digital printing. */
+export async function updateDeckToCheapest(input: {
+  deckId: string;
+}): Promise<ActionResult> {
+  const ctx = await context();
+  if (!ctx.ok) return { ok: false, error: ctx.error };
+  if (!(await ownedDeck(ctx.supabase, input.deckId, ctx.session.id))) {
+    return { ok: false, error: "not_found" };
+  }
+
+  const { data, error } = await ctx.supabase
+    .from("deck_cards")
+    .select("id,oracle_id,printing_id")
+    .eq("deck_id", input.deckId);
+  if (error) return { ok: false, error: error.message };
+
+  const rows = (data ?? []) as {
+    id: string;
+    oracle_id: string;
+    printing_id: string | null;
+  }[];
+  const cheapest = await getCheapestPrintingIds(
+    rows.map((row) => row.oracle_id),
+  ).catch(() => new Map<string, string>());
+
+  let updated = 0;
+  for (const row of rows) {
+    const printingId = cheapest.get(row.oracle_id);
+    if (!printingId || printingId === row.printing_id) continue;
+    const { error: updateError } = await ctx.supabase
+      .from("deck_cards")
+      .update({ printing_id: printingId })
+      .eq("id", row.id)
+      .eq("deck_id", input.deckId);
+    if (!updateError) updated += 1;
+  }
+
+  revalidateDeck(input.deckId);
+  return { ok: true, report: { added: updated, skipped: [] } };
+}
+
 export async function removeDeckCard(input: {
   deckId: string;
   cardId: string;
@@ -621,6 +737,17 @@ export async function importDecklist(input: {
     found
       .filter(isPauperLegal)
       .map((card) => [card.name_normalized, card] as const),
+  );
+
+  const { data: favoriteRows } = await ctx.supabase
+    .from("favorite_printings")
+    .select("oracle_id,printing_id")
+    .eq("user_id", ctx.session.id)
+    .in("oracle_id", [...byName.values()].map((card) => card.oracle_id));
+  const favoriteByOracle = new Map(
+    ((favoriteRows ?? []) as { oracle_id: string; printing_id: string }[]).map(
+      (row) => [row.oracle_id, row.printing_id],
+    ),
   );
 
   if (input.mode === "replace") {
@@ -680,7 +807,10 @@ export async function importDecklist(input: {
           deck_id: input.deckId,
           oracle_id: card.oracle_id,
           printing_id:
-            card.metagame_printing_id ?? card.default_printing_id ?? null,
+            favoriteByOracle.get(card.oracle_id) ??
+            card.metagame_printing_id ??
+            card.default_printing_id ??
+            null,
           card_name: card.name,
           quantity: Math.min(999, entry.quantity),
           board: entry.board,

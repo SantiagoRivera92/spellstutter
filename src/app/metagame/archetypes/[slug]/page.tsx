@@ -18,6 +18,7 @@ import {
   type ArchetypeRecord,
 } from "@/lib/metagame/queries";
 import type { ArchetypeCardStat } from "@/lib/metagame/types";
+import { getMetagameDeckViews } from "@/lib/metagame/deck-view";
 import { getCombinedArchetypeMatchups } from "@/lib/metagame/queries";
 import { wilsonScoreInterval } from "@/lib/metagame/wilson";
 
@@ -49,6 +50,13 @@ export default async function ArchetypePage({
     getSession(),
     listDecksByArchetype(slug).catch(() => []),
   ]);
+  const deckViews = await getMetagameDeckViews(decks).catch(() => []);
+  const viewByKey = new Map(
+    decks.map((deck, index) => [
+      `${deck.event_slug}-${deck.player}`,
+      deckViews[index],
+    ]),
+  );
   const [stat, breakdown, matchups, combinedRecord] = session
     ? await Promise.all([
         getArchetypeStat(slug, 30).catch(() => null),
@@ -250,12 +258,13 @@ export default async function ArchetypePage({
         <h2 className="mb-2 font-display text-base font-medium">Recent lists</h2>
         {decks.length ? (
           <div className="rounded-lg border border-border bg-card">
-            {decks.map((deck) => (
-              <DeckDetails
-                key={`${deck.event_slug}-${deck.player}`}
-                deck={deck}
-              />
-            ))}
+            {decks.map((deck) => {
+              const key = `${deck.event_slug}-${deck.player}`;
+              const view = viewByKey.get(key);
+              return view ? (
+                <DeckDetails key={key} deck={deck} view={view} />
+              ) : null;
+            })}
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">

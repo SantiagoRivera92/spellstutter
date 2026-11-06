@@ -225,7 +225,7 @@ async function run(db: Db, options: Options, info: BulkInfo, now: string) {
     }
     // A Zeta printing must never be the default art, so track the earliest
     // non-Zeta printing at common and at any rarity.
-    if (!rank.promo && rank.set !== "slz") {
+    if (!rank.promo && !rank.digital && rank.set !== "slz") {
       const currentAny = anyNonZeta.get(oracleId);
       if (!currentAny || rank.releasedAt < currentAny.rank.releasedAt) {
         anyNonZeta.set(oracleId, { id: printing.scryfall_id, rank });

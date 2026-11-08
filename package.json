@@ -15,6 +15,7 @@
     "typecheck": "tsc --noEmit",
     "test": "tsx scripts/run-tests.ts",
     "sync:cards": "tsx scripts/sync-scryfall.ts",
+    "sync:tcgplayer": "tsx scripts/sync-tcgplayer.ts",
     "sync:metagame": "tsx scripts/scrape-metagame.ts",
     "sync:melee": "tsx scripts/scrape-melee.ts",
     "sync:cardsrealm": "tsx scripts/scrape-cardsrealm.ts",

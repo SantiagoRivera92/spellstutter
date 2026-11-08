@@ -672,6 +672,7 @@ function mergeServerCard(
     oracle_text: search.oracle_text,
     rarity: search.rarity,
     mtgo_id: null,
+    tcgplayer_product_id: null,
     colors: search.colors,
     color_identity: search.color_identity,
     art_crop: search.art_crop,

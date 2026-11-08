@@ -22,6 +22,8 @@ export interface DeckCardView extends DeckCard {
   rarity: string;
   /** Magic Online catalog id of the chosen printing (for .dek export). */
   mtgo_id: number | null;
+  /** TCGplayer catalog product id of the chosen printing. */
+  tcgplayer_product_id?: number | null;
   colors: CardColor[];
   color_identity: CardColor[];
   art_crop: string | null;

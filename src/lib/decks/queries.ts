@@ -206,6 +206,7 @@ export async function getDeckView(deckId: string): Promise<DeckView | null> {
       oracle_text: details?.oracle_text ?? "",
       rarity: printing?.rarity ?? details?.rarity ?? "common",
       mtgo_id: printing?.mtgo_id ?? details?.mtgo_id ?? null,
+      tcgplayer_product_id: printing?.tcgplayer_product_id ?? null,
       colors: details?.colors ?? [],
       color_identity: details?.color_identity ?? [],
       art_crop:

@@ -30,9 +30,31 @@ function withEnv(values: Record<string, string>, fn: () => void) {
 }
 
 const cards = [
-  { card_name: "Lightning Bolt", quantity: 4, board: "main" as const },
-  { card_name: "Island", quantity: 18, board: "main" as const },
+  {
+    card_name: "Lightning Bolt",
+    quantity: 4,
+    board: "main" as const,
+    tcgplayer_product_id: null,
+  },
+  {
+    card_name: "Island",
+    quantity: 18,
+    board: "main" as const,
+    tcgplayer_product_id: null,
+  },
 ];
+
+const cardsWithIds = [
+  { ...cards[0], tcgplayer_product_id: 111 },
+  { ...cards[1], tcgplayer_product_id: 222 },
+];
+
+function massEntryLinesFromHref(href: string): string {
+  const outer = new URL(href);
+  const destination = outer.searchParams.get("u");
+  assert.ok(destination);
+  return new URL(destination).searchParams.get("c") ?? "";
+}
 
 test("affiliate links are hidden when disabled", () => {
   withEnv({ AFFILIATE_TCGPLAYER_URL: "https://example.com/buy" }, () => {
@@ -41,7 +63,7 @@ test("affiliate links are hidden when disabled", () => {
   });
 });
 
-test("affiliate links use the configured partner urls", () => {
+test("TCGplayer links fall back to card names without product ids", () => {
   withEnv(
     {
       MONETIZATION_ENABLED: "true",
@@ -50,38 +72,50 @@ test("affiliate links use the configured partner urls", () => {
       AFFILIATE_MANAPOOL_URL: "https://manapool.com/?ref=shardless",
     },
     () => {
-      assert.deepEqual(deckBuyLinks(cards), [
-        {
-          label: "TCGplayer",
-          href: "https://partner.tcgplayer.com/spellbook",
-        },
-        {
-          label: "ManaPool",
-          href: "https://manapool.com/?ref=shardless",
-        },
-      ]);
+      const [tcgplayer, manapool] = deckBuyLinks(cards);
+      assert.equal(tcgplayer.label, "TCGplayer");
+      assert.match(tcgplayer.href, /^https:\/\/partner\.tcgplayer\.com\/spellbook\?u=/);
+      assert.equal(massEntryLinesFromHref(tcgplayer.href), "4 Lightning Bolt\n18 Island");
+      assert.deepEqual(manapool, {
+        label: "ManaPool",
+        href: "https://manapool.com/?ref=shardless",
+      });
       assert.match(affiliateDisclosure() ?? "", /affiliate links/);
     },
   );
 });
 
-test("deck buy template receives the encoded card list", () => {
+test("TCGplayer mass entry uses product ids when every card has one", () => {
+  withEnv(
+    {
+      MONETIZATION_ENABLED: "true",
+      AFFILIATE_LINKS_ENABLED: "true",
+      AFFILIATE_TCGPLAYER_URL: "https://partner.tcgplayer.com/spellbook",
+    },
+    () => {
+      const [tcgplayer] = deckBuyLinks(cardsWithIds);
+      assert.equal(massEntryLinesFromHref(tcgplayer.href), "4-111\n18-222");
+    },
+  );
+});
+
+test("deck buy template receives cards and ids", () => {
   withEnv(
     {
       MONETIZATION_ENABLED: "true",
       AFFILIATE_LINKS_ENABLED: "true",
       AFFILIATE_TCGPLAYER_URL: "https://partner.tcgplayer.com/spellbook",
       AFFILIATE_DECK_BUY_URL_TEMPLATE:
-        "https://example.com/mass?cards={cards}",
+        "https://example.com/mass?cards={cards}&ids={ids}",
     },
     () => {
-      const [link] = deckBuyLinks(cards);
+      const [link] = deckBuyLinks(cardsWithIds);
+      const url = new URL(link.href);
       assert.equal(
-        link.href,
-        `https://example.com/mass?cards=${encodeURIComponent(
-          "4 Lightning Bolt\n18 Island",
-        )}`,
+        url.searchParams.get("cards"),
+        "4-111\n18-222",
       );
+      assert.equal(url.searchParams.get("ids"), "4-111\n18-222");
     },
   );
 });

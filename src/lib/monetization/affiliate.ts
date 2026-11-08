@@ -7,16 +7,51 @@ export interface BuyLink {
   href: string;
 }
 
-type BuyableCard = Pick<DeckCardView, "card_name" | "quantity" | "board">;
+type BuyableCard = Pick<
+  DeckCardView,
+  "card_name" | "quantity" | "board" | "tcgplayer_product_id"
+>;
 
 function partnerUrl(name: string): string | null {
   return process.env[name]?.trim() || null;
 }
 
-function cardList(cards: BuyableCard[]): string {
-  return cards
-    .map((card) => `${card.quantity} ${card.card_name}`)
-    .join("\n");
+/** TCGplayer Mass Entry accepts `qty-productId` lines when IDs are known. */
+function massEntryLines(cards: BuyableCard[]): string {
+  if (cards.every((card) => card.tcgplayer_product_id != null)) {
+    return cards
+      .map((card) => `${card.quantity}-${card.tcgplayer_product_id}`)
+      .join("\n");
+  }
+  return cards.map((card) => `${card.quantity} ${card.card_name}`).join("\n");
+}
+
+export function tcgplayerMassEntryUrl(cards: BuyableCard[]): string {
+  return `https://www.tcgplayer.com/massentry?productline=Magic&c=${encodeURIComponent(
+    massEntryLines(cards),
+  )}`;
+}
+
+/**
+ * TCGplayer's Impact partner links accept a `u` parameter with the destination
+ * URL. Other affiliate URLs are left alone.
+ */
+function wrapTcgplayerAffiliate(destination: string): string | null {
+  const base = partnerUrl("AFFILIATE_TCGPLAYER_URL");
+  if (!base) return null;
+  try {
+    const url = new URL(base);
+    if (
+      url.hostname === "partner.tcgplayer.com" ||
+      url.hostname.endsWith(".partner.tcgplayer.com")
+    ) {
+      url.searchParams.set("u", destination);
+      return url.toString();
+    }
+  } catch {
+    return null;
+  }
+  return null;
 }
 
 /**
@@ -29,10 +64,21 @@ export function deckBuyLinks(cards: BuyableCard[]): BuyLink[] {
   const links: BuyLink[] = [];
   const tcgplayer = partnerUrl("AFFILIATE_TCGPLAYER_URL");
   const template = partnerUrl("AFFILIATE_DECK_BUY_URL_TEMPLATE");
-  if (tcgplayer) {
-    const href = template
-      ? template.replace("{cards}", encodeURIComponent(cardList(cards)))
-      : tcgplayer;
+
+  if (tcgplayer || template) {
+    const massEntry = tcgplayerMassEntryUrl(cards);
+    let href: string;
+    if (template) {
+      const ids = cards
+        .filter((card) => card.tcgplayer_product_id != null)
+        .map((card) => `${card.quantity}-${card.tcgplayer_product_id}`)
+        .join("\n");
+      href = template
+        .replace("{cards}", encodeURIComponent(massEntryLines(cards)))
+        .replace("{ids}", encodeURIComponent(ids));
+    } else {
+      href = wrapTcgplayerAffiliate(massEntry) ?? massEntry;
+    }
     links.push({ label: "TCGplayer", href });
   }
 

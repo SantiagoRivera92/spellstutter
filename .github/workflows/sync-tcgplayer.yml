@@ -1,0 +1,57 @@
+name: Sync TCGplayer product ids
+
+on:
+  schedule:
+    # Daily at 09:17 UTC — after the card catalog and event syncs.
+    - cron: "17 9 * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Re-query cards that already have product ids
+        type: boolean
+        default: false
+      limit:
+        description: Maximum cards to scan (for testing)
+        required: false
+      dry_run:
+        description: Resolve ids without writing to MongoDB
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync-tcgplayer
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    environment: spellstutter
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Resolve TCGplayer product ids for Pauper cards
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          MONGODB_DB: ${{ vars.MONGODB_DB || 'spellstutter' }}
+          TCGPLAYER_PUBLIC_KEY: ${{ secrets.TCGPLAYER_PUBLIC_KEY }}
+          TCGPLAYER_PRIVATE_KEY: ${{ secrets.TCGPLAYER_PRIVATE_KEY }}
+          SCRYFALL_USER_AGENT: ${{ vars.SCRYFALL_USER_AGENT }}
+        run: |
+          ARGS=""
+          if [ "${{ inputs.force }}" = "true" ]; then ARGS="$ARGS --force"; fi
+          if [ -n "${{ inputs.limit }}" ]; then ARGS="$ARGS --limit=${{ inputs.limit }}"; fi
+          if [ "${{ inputs.dry_run }}" = "true" ]; then ARGS="$ARGS --dry-run"; fi
+          pnpm sync:tcgplayer -- $ARGS

@@ -62,6 +62,8 @@ export interface Card {
   scryfall_uri: string;
   /** Magic Online catalog id for the default printing. */
   mtgo_id: number | null;
+  /** TCGplayer product id for the default/metagame printing. */
+  tcgplayer_product_id?: number | null;
   /** Most recent non-promo, non-digital printing (best default art). */
   default_printing_id: string;
   /** Earliest common printing with original art — used for metagame lists. */
@@ -90,6 +92,8 @@ export interface Printing {
   digital: boolean;
   /** Magic Online catalog id, used by .dek exports. */
   mtgo_id: number | null;
+  /** TCGplayer catalog product id for this printing. */
+  tcgplayer_product_id?: number | null;
   updated_at: string;
 }
 

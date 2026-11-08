@@ -135,6 +135,9 @@ pnpm sync:metagame
 
 # endstep archetypes (optional, used for seeding)
 pnpm sync:endstep
+
+# TCGplayer product ids (optional, used for Buy this deck links)
+pnpm sync:tcgplayer
 ```
 
 Sync indexes are created automatically on the first run.
@@ -153,6 +156,7 @@ show a setup notice instead of failing.
 | Command | Source | Writes | Schedule |
 | --- | --- | --- | --- |
 | `pnpm sync:cards` | Scryfall bulk API | `cards`, `printings` | Daily, 04:17 UTC |
+| `pnpm sync:tcgplayer` | TCGplayer catalog API | TCGplayer product ids on `cards`/`printings` | Daily, 09:17 UTC |
 | `pnpm sync:metagame` | mtgo.com decklists | `metagame_events`, `metagame_decks` | Daily, 05:23 UTC |
 | `pnpm sync:melee` | melee.gg paper Pauper | `metagame_events`, `metagame_decks`, `melee_matches` | Daily, 07:13 UTC |
 | `pnpm sync:cardsrealm` | cardsrealm.com Pauper events | `metagame_events`, `metagame_decks`, `cardsrealm_matches` | Daily, 08:07 UTC |

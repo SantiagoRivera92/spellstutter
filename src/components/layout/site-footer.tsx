@@ -32,6 +32,12 @@ export function SiteFooter() {
               Support
             </a>
           ) : null}
+          <Link href="/privacy" className="hover:text-foreground">
+            Privacy
+          </Link>
+          <Link href="/terms" className="hover:text-foreground">
+            Terms
+          </Link>
         </nav>
         {affiliateNote ? (
           <p className="mt-4 max-w-prose text-xs leading-relaxed text-muted-foreground">

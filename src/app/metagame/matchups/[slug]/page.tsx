@@ -2,12 +2,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { PageHeader } from "@/components/layout/page-header";
 import { SetupNotice } from "@/components/setup-notice";
-import { getSession } from "@/lib/auth/session";
 import { isMongoConfigured } from "@/lib/env";
 import { getCombinedArchetypeMatchups } from "@/lib/metagame/queries";
+import { hasPremiumAccess } from "@/lib/monetization/supporter";
 import { archetypeName } from "@/lib/metagame/archetypes";
 import { isSourceEnabled } from "@/lib/metagame/sources";
-import { buttonVariants } from "@/components/ui/button";
+import { PremiumTeaser } from "@/components/monetization/premium-teaser";
 
 export const dynamic = "force-dynamic";
 
@@ -34,21 +34,14 @@ export default async function MatchupsPage({
     );
   }
 
-  const session = await getSession();
-  if (!session) {
+  if (!(await hasPremiumAccess())) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-8">
-        <PageHeader title="Matchups" />
-        <div className="mt-6 flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card p-5">
-          <p className="text-sm text-muted-foreground">
-            Statistics for this archetype are available with a free account.
-          </p>
-          <Link
-            href={`/signup?next=/metagame/matchups/${slug}`}
-            className={buttonVariants({ size: "sm" })}
-          >
-            Create free account
-          </Link>
+        <PageHeader title={`Matchups - ${archetypeName(slug)}`} />
+        <div className="mt-6">
+          <PremiumTeaser
+            description="The full matchup table is available to Patreon supporters. Basic metagame data, decklists, and the deckbuilder stay free."
+          />
         </div>
       </div>
     );

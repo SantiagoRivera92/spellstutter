@@ -8,6 +8,7 @@ import { formatDate, formatUsd } from "@/lib/utils";
 import { archetypeName } from "@/lib/metagame/archetypes";
 import { Badge } from "@/components/ui/badge";
 import { ColorPips } from "@/components/cards/color-pips";
+import { BuyDeckLinks } from "@/components/monetization/buy-deck-links";
 import { DeckToolbar, VisibilityControl } from "./deck-toolbar";
 
 export function DeckHeader({
@@ -130,6 +131,7 @@ export function DeckHeader({
             </div>
 
             <div className="flex flex-col items-start gap-3 lg:items-end">
+              <BuyDeckLinks cards={cards} />
               {toolbar ?? (
                 <DeckToolbar
                   deckId={deck.id}

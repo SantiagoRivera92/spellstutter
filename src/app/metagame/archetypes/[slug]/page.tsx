@@ -1,13 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Lock } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { SetupNotice } from "@/components/setup-notice";
 import { DeckDetails } from "@/components/metagame/deck-details";
 import { ColorPips } from "@/components/cards/color-pips";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
-import { getSession } from "@/lib/auth/session";
 import { isMongoConfigured } from "@/lib/env";
 import { archetypeName } from "@/lib/metagame/archetypes";
 import {
@@ -19,6 +17,8 @@ import {
 } from "@/lib/metagame/queries";
 import type { ArchetypeCardStat } from "@/lib/metagame/types";
 import { getMetagameDeckViews } from "@/lib/metagame/deck-view";
+import { hasPremiumAccess } from "@/lib/monetization/supporter";
+import { PremiumTeaser } from "@/components/monetization/premium-teaser";
 import { getCombinedArchetypeMatchups } from "@/lib/metagame/queries";
 import { wilsonScoreInterval } from "@/lib/metagame/wilson";
 
@@ -46,8 +46,8 @@ export default async function ArchetypePage({
     );
   }
 
-  const [session, decks] = await Promise.all([
-    getSession(),
+  const [premium, decks] = await Promise.all([
+    hasPremiumAccess(),
     listDecksByArchetype(slug).catch(() => []),
   ]);
   const deckViews = await getMetagameDeckViews(decks).catch(() => []);
@@ -57,7 +57,7 @@ export default async function ArchetypePage({
       deckViews[index],
     ]),
   );
-  const [stat, breakdown, matchups, combinedRecord] = session
+  const [stat, breakdown, matchups, combinedRecord] = premium
     ? await Promise.all([
         getArchetypeStat(slug, 30).catch(() => null),
         getArchetypeBreakdown(slug, 30).catch(() => null),
@@ -164,7 +164,7 @@ export default async function ArchetypePage({
         description="Top-performing and recent paper and MTGO lists for this archetype."
       />
 
-      {session && stat ? (
+      {premium && stat ? (
         <dl className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Metric label="Meta share" value={`${(stat.meta_share * 100).toFixed(1)}%`} />
           <Metric
@@ -184,18 +184,12 @@ export default async function ArchetypePage({
             value={wilsonValue}
           />
         </dl>
-      ) : !session ? (
-        <div className="mt-6 flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card p-5">
-          <Lock className="size-4 text-muted-foreground" aria-hidden />
-          <p className="flex-1 text-sm text-muted-foreground">
-            Statistics for this archetype are available with a free account.
-          </p>
-          <Link
-            href={`/signup?next=/metagame/archetypes/${slug}`}
-            className={buttonVariants({ size: "sm" })}
-          >
-            Create free account
-          </Link>
+      ) : !premium ? (
+        <div className="mt-6">
+          <PremiumTeaser
+            title="Premium archetype analytics"
+            description="Win rates, matchup records, and average deck composition are available to Patreon supporters. Recent lists and the deckbuilder stay free."
+          />
         </div>
       ) : null}
 

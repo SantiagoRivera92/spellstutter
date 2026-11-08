@@ -90,9 +90,11 @@ const NAV_GROUPS: NavGroup[] = [
 export function HeaderNav({
   session,
   unread = 0,
+  supporterTier = null,
 }: {
   session: HeaderSession | null;
   unread?: number;
+  supporterTier?: string | null;
 }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = React.useState(false);
@@ -168,6 +170,14 @@ export function HeaderNav({
                   <span className="hidden text-sm font-medium sm:inline">
                     {session.displayName}
                   </span>
+                  {supporterTier ? (
+                    <span
+                      className="rounded border border-primary/40 px-1 text-[9px] font-semibold tracking-wide text-primary"
+                      title={`Patreon supporter${supporterTier ? `: ${supporterTier}` : ""}`}
+                    >
+                      {supporterTier.toUpperCase()}
+                    </span>
+                  ) : null}
                 </span>
               }
             >

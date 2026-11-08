@@ -1,8 +1,20 @@
+import * as React from "react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { parseManaCost } from "@/lib/cards/mana";
 
 const SYMBOL_BASE = "https://svgs.scryfall.io/card-symbols";
+
+/** `{W/U}` -> `WU`, `{∞}` -> `INF`, `{½}` -> `H`, matching Scryfall file names. */
+function symbolFile(value: string): string {
+  if (value === "∞") return "INF";
+  if (value === "½") return "H";
+  return value.toUpperCase().replace(/\//g, "");
+}
+
+function symbolUrl(value: string): string {
+  return `${SYMBOL_BASE}/${symbolFile(value)}.svg`;
+}
 
 export function ManaCost({
   cost,
@@ -37,7 +49,7 @@ export function ManaCost({
           {parseManaCost(group).map((symbol, index) => (
             <Image
               key={`${symbol.value}-${index}`}
-              src={`${SYMBOL_BASE}/${symbol.value.replace(/\//g, "")}.svg`}
+              src={symbolUrl(symbol.value)}
               alt=""
               width={size}
               height={size}
@@ -47,6 +59,43 @@ export function ManaCost({
           ))}
         </span>
       ))}
+    </span>
+  );
+}
+
+/**
+ * Oracle text with inline mana symbols, e.g. Ninja of the Deep Hours'
+ * "{1}{U}: Draw a card." renders the {1} and {U} as symbols.
+ */
+export function ManaText({
+  text,
+  className,
+  size = 14,
+}: {
+  text: string;
+  className?: string;
+  size?: number;
+}) {
+  const parts = text.split(/(\{[^}]+\})/g);
+  return (
+    <span className={className}>
+      {parts.map((part, index) => {
+        const match = /^\{([^}]+)\}$/.exec(part);
+        if (!match) {
+          return <React.Fragment key={index}>{part}</React.Fragment>;
+        }
+        return (
+          <Image
+            key={index}
+            src={symbolUrl(match[1])}
+            alt={part}
+            width={size}
+            height={size}
+            unoptimized
+            className="mx-0.5 inline-block shrink-0 align-[-0.15em]"
+          />
+        );
+      })}
     </span>
   );
 }

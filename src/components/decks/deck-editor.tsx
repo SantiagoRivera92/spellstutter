@@ -29,7 +29,7 @@ import {
 import { computeDeckStats, deriveCategory, groupByCategory } from "@/lib/decks/utils";
 import { cn, formatUsd } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { ManaCost } from "@/components/cards/mana-cost";
+import { ManaCost, ManaText } from "@/components/cards/mana-cost";
 import { CardSearch } from "@/components/cards/card-search";
 import { DeckStatsPanel } from "./deck-stats";
 import { DeckVisualBoard } from "./deck-visual-board";
@@ -636,7 +636,7 @@ function CardPreview({ card }: { card: PreviewCard | null }) {
         </div>
         {card.oracle_text ? (
           <p className="whitespace-pre-line text-xs leading-relaxed text-muted-foreground">
-            {card.oracle_text}
+            <ManaText text={card.oracle_text} size={12} />
           </p>
         ) : null}
       </div>

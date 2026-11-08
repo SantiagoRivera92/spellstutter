@@ -1,6 +1,11 @@
 import Link from "next/link";
+import { donationUrl } from "@/lib/monetization/flags";
+import { affiliateDisclosure } from "@/lib/monetization/affiliate";
 
 export function SiteFooter() {
+  const supportUrl = donationUrl();
+  const affiliateNote = affiliateDisclosure();
+
   return (
     <footer className="border-t border-border">
       <div className="mx-auto max-w-6xl px-4 py-8">
@@ -17,8 +22,23 @@ export function SiteFooter() {
           <Link href="/decks" className="hover:text-foreground">
             My decks
           </Link>
+          {supportUrl ? (
+            <a
+              href={supportUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-foreground"
+            >
+              Support
+            </a>
+          ) : null}
         </nav>
-        <p className="mt-6 max-w-prose text-xs leading-relaxed text-muted-foreground">
+        {affiliateNote ? (
+          <p className="mt-4 max-w-prose text-xs leading-relaxed text-muted-foreground">
+            {affiliateNote}
+          </p>
+        ) : null}
+        <p className="mt-4 max-w-prose text-xs leading-relaxed text-muted-foreground">
           Spellstutter is unofficial Fan Content permitted under the Wizards of
           the Coast Fan Content Policy. Magic: The Gathering is a trademark of
           Wizards of the Coast LLC. Card data from Scryfall.

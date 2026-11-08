@@ -623,7 +623,15 @@ export async function setFavoritePrinting(input: {
       .delete()
       .eq("user_id", ctx.session.id)
       .eq("oracle_id", input.oracleId);
-    if (error) return { ok: false, error: error.message };
+    if (error) {
+      if (
+        error.code === "PGRST205" ||
+        error.message.includes("favorite_printings")
+      ) {
+        return { ok: false, error: "migration_required" };
+      }
+      return { ok: false, error: error.message };
+    }
     return { ok: true };
   }
 
@@ -641,7 +649,15 @@ export async function setFavoritePrinting(input: {
     },
     { onConflict: "user_id,oracle_id" },
   );
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    if (
+      error.code === "PGRST205" ||
+      error.message.includes("favorite_printings")
+    ) {
+      return { ok: false, error: "migration_required" };
+    }
+    return { ok: false, error: error.message };
+  }
   return { ok: true };
 }
 

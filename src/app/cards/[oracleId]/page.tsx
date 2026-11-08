@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ExternalLink } from "lucide-react";
 import { PrintingGallery } from "@/components/cards/printing-gallery";
-import { ManaCost } from "@/components/cards/mana-cost";
+import { ManaCost, ManaText } from "@/components/cards/mana-cost";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/layout/page-header";
 import { SetupNotice } from "@/components/setup-notice";
@@ -138,10 +138,10 @@ export default async function CardPage({
                       {face.name !== card.name ? (
                         <span className="font-medium">{face.name} — </span>
                       ) : null}
-                      {face.oracle_text}
+                      <ManaText text={face.oracle_text} />
                     </p>
                   ))
-                : card.oracle_text}
+                : <ManaText text={card.oracle_text} />}
             </div>
           ) : null}
 

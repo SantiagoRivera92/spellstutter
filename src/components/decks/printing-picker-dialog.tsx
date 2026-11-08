@@ -141,7 +141,9 @@ export function PrintingPickerDialog({
       setError(
         result.error === "unauthenticated"
           ? "Sign in to save favourite printings."
-          : "Could not save that favourite.",
+          : result.error === "migration_required"
+            ? "Favourite printings need a database migration. Apply supabase/migrations/20261105120000_favorite_printings.sql and try again."
+            : "Could not save that favourite.",
       );
     }
   }

@@ -47,9 +47,20 @@ jobs:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
           MONGODB_DB: ${{ vars.MONGODB_DB || 'spellstutter' }}
           TCGPLAYER_PUBLIC_KEY: ${{ secrets.TCGPLAYER_PUBLIC_KEY }}
+          TCGPLAYER_SECRET_KEY: ${{ secrets.TCGPLAYER_SECRET_KEY }}
           TCGPLAYER_PRIVATE_KEY: ${{ secrets.TCGPLAYER_PRIVATE_KEY }}
+          TCGPLAYER_PUBLICKEY: ${{ secrets.TCGPLAYER_PUBLICKEY }}
+          TCGPLAYER_PRIVATEKEY: ${{ secrets.TCGPLAYER_PRIVATEKEY }}
           SCRYFALL_USER_AGENT: ${{ vars.SCRYFALL_USER_AGENT }}
         run: |
+          if [ -z "$TCGPLAYER_PUBLIC_KEY" ] && [ -z "$TCGPLAYER_PUBLICKEY" ]; then
+            echo "::error::TCGPLAYER_PUBLIC_KEY is not set in the spellstutter environment."
+            exit 1
+          fi
+          if [ -z "$TCGPLAYER_SECRET_KEY" ] && [ -z "$TCGPLAYER_PRIVATE_KEY" ] && [ -z "$TCGPLAYER_PRIVATEKEY" ]; then
+            echo "::error::Set TCGPLAYER_SECRET_KEY (or TCGPLAYER_PRIVATE_KEY) in the spellstutter environment."
+            exit 1
+          fi
           ARGS=""
           if [ "${{ inputs.force }}" = "true" ]; then ARGS="$ARGS --force"; fi
           if [ -n "${{ inputs.limit }}" ]; then ARGS="$ARGS --limit=${{ inputs.limit }}"; fi

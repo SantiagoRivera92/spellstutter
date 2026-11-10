@@ -101,12 +101,15 @@ async function getToken(): Promise<string> {
   ]);
   const clientSecret = firstEnv([
     "TCGPLAYER_SECRET_KEY",
+    "TCGPLAYER_PRIVATE_KEY",
     "TcGPLAYER_SECRET_KEY",
+    "TcGPLAYER_PRIVATE_KEY",
     "TCGPLAYER_SECRETKEY",
+    "TCGPLAYER_PRIVATEKEY",
   ]);
   if (!clientId || !clientSecret) {
     throw new Error(
-      "TCGPLAYER_PUBLIC_KEY and TCGPLAYER_SECRET_KEY must be set.",
+      "TCGPLAYER_PUBLIC_KEY plus TCGPLAYER_SECRET_KEY or TCGPLAYER_PRIVATE_KEY must be set.",
     );
   }
 

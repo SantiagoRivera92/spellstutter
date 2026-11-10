@@ -430,6 +430,14 @@ async function buildArchetype(
   };
 }
 
+function toArchetypeDocument(
+  archetype: EndstepArchetypeWithMatchups,
+): EndstepArchetype {
+  const { matchups, ...document } = archetype;
+  void matchups;
+  return document;
+}
+
 async function ensureIndexes(db: Db) {
   const archetypeCollection = db.collection(COLLECTION);
   const matchupCollection = db.collection("endstep_matchups");
@@ -479,7 +487,7 @@ async function run(db: Db, options: Options) {
     (archetype) => ({
       updateOne: {
         filter: { format_id: archetype.format_id, slug: archetype.slug },
-        update: { $set: archetype },
+        update: { $set: toArchetypeDocument(archetype) },
         upsert: true,
       },
     }),

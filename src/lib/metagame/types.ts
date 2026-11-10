@@ -17,8 +17,6 @@ export interface MetagameCardEntry {
   printing_id: string | null;
   /** Card type line, for grouping the decklist. */
   type_line?: string | null;
-  /** Card image (normal size), for the hover preview. */
-  image?: string | null;
   /** Colors the card contributes to identity (hybrid/Phyrexian excluded). */
   colors?: CardColor[];
 }

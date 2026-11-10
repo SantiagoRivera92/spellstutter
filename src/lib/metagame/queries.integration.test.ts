@@ -23,7 +23,6 @@ function cardEntry(
     oracle_id: oracleId,
     printing_id: null,
     type_line: typeLine,
-    image: null,
     colors,
   };
 }

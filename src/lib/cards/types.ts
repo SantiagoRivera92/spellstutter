@@ -87,8 +87,8 @@ export interface Printing {
   image_uris: CardImages;
   card_faces: PrintingFace[] | null;
   prices: CardPrice;
-  finishes: string[];
-  promo: boolean;
+  finishes?: string[];
+  promo?: boolean;
   digital: boolean;
   /** Magic Online catalog id, used by .dek exports. */
   mtgo_id: number | null;

@@ -77,6 +77,19 @@ export function isScryfallPauperLegal(card: ScryfallCard): boolean {
   return card.legalities?.pauper === "legal";
 }
 
+function storedCardImages(uris?: ScryfallImageUris): CardImages {
+  const images = normalizeImages(uris);
+  images.small = null;
+  images.large = null;
+  return images;
+}
+
+function storedPrintingImages(uris?: ScryfallImageUris): CardImages {
+  const images = normalizeImages(uris);
+  images.large = null;
+  return images;
+}
+
 function oracleFaces(card: ScryfallCard): CardFace[] | null {
   if (!card.card_faces?.length) return null;
   return card.card_faces.map((face) => ({
@@ -84,7 +97,7 @@ function oracleFaces(card: ScryfallCard): CardFace[] | null {
     mana_cost: face.mana_cost ?? "",
     type_line: face.type_line ?? "",
     oracle_text: face.oracle_text ?? "",
-    image_uris: normalizeImages(face.image_uris),
+    image_uris: storedCardImages(face.image_uris),
   }));
 }
 
@@ -92,7 +105,7 @@ function printingFaces(card: ScryfallCard): PrintingFace[] | null {
   if (!card.card_faces?.length) return null;
   return card.card_faces.map((face) => ({
     name: face.name,
-    image_uris: normalizeImages(face.image_uris),
+    image_uris: storedPrintingImages(face.image_uris),
   }));
 }
 
@@ -124,14 +137,12 @@ export function scryfallToPrinting(card: ScryfallCard, now: string): Printing {
     rarity: card.rarity ?? "common",
     released_at: card.released_at ?? "",
     artist: card.artist ?? null,
-    image_uris: normalizeImages(card.image_uris),
+    image_uris: storedPrintingImages(card.image_uris),
     card_faces: printingFaces(card),
     prices: {
       usd: toPrice(card.prices?.usd),
       usd_foil: toPrice(card.prices?.usd_foil),
     },
-    finishes: card.finishes ?? [],
-    promo: card.promo ?? false,
     digital: card.digital ?? false,
     mtgo_id: card.mtgo_id ?? null,
     updated_at: now,
@@ -156,7 +167,7 @@ export function scryfallToCanonical(card: ScryfallCard, now: string): Card {
     set_name: card.set_name ?? "",
     collector_number: card.collector_number ?? "",
     released_at: card.released_at ?? "",
-    image_uris: normalizeImages(card.image_uris),
+    image_uris: storedCardImages(card.image_uris),
     card_faces: oracleFaces(card),
     prices: {
       usd: toPrice(card.prices?.usd),
@@ -168,7 +179,11 @@ export function scryfallToCanonical(card: ScryfallCard, now: string): Card {
     default_printing_id: card.id,
     metagame_printing_id: null,
     printings_count: 0,
-    legalities: normalizeLegalities(card.legalities),
+    // Spellstutter is Pauper-only; storing every format doubles the size of
+    // the catalog for no UI benefit.
+    legalities: {
+      pauper: normalizeLegalities(card.legalities).pauper,
+    },
     updated_at: now,
   };
 }

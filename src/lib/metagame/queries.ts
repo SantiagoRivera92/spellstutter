@@ -742,7 +742,6 @@ export async function getMetagameSummary(
 export interface StapleCard {
   name: string;
   oracle_id: string | null;
-  image: string | null;
   art_crop: string | null;
   type_line: string | null;
   decks: number;
@@ -783,7 +782,6 @@ function stapleCategory(
 interface StapleAggRow {
   _id: string;
   oracle_id: string | null;
-  image: string | null;
   type_line: string | null;
   decks: number;
   copies: number;
@@ -803,7 +801,6 @@ async function aggregateBoardStaples(
         $group: {
           _id: `$${board}.name`,
           oracle_id: { $first: `$${board}.oracle_id` },
-          image: { $first: `$${board}.image` },
           type_line: { $first: `$${board}.type_line` },
           decks: { $sum: 1 },
           copies: { $sum: `$${board}.quantity` },
@@ -817,7 +814,6 @@ function toStapleCards(rows: StapleAggRow[], totalDecks: number): StapleCard[] {
   return rows.map((row) => ({
     name: row._id,
     oracle_id: row.oracle_id ?? null,
-    image: row.image ?? null,
     art_crop: null,
     type_line: row.type_line ? frontFace(row.type_line) : null,
     decks: row.decks,

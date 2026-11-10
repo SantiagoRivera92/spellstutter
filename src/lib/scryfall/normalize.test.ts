@@ -99,7 +99,6 @@ test("scryfallToPrinting normalizes printing fields", () => {
   assert.equal(printing.released_at, "1993-08-05");
   assert.equal(printing.artist, "Christopher Rush");
   assert.deepEqual(printing.prices, { usd: 1.5, usd_foil: null });
-  assert.deepEqual(printing.finishes, ["nonfoil", "foil"]);
   assert.equal(printing.mtgo_id, 1234);
   assert.equal(printing.updated_at, NOW);
   assert.equal(printing.card_faces, null);
@@ -147,11 +146,7 @@ test("scryfallToCanonical normalizes a card", () => {
   assert.equal(canonical.cmc, 1);
   assert.deepEqual(canonical.colors, ["R"]);
   assert.deepEqual(canonical.color_identity, ["R"]);
-  assert.deepEqual(canonical.legalities, {
-    pauper: "legal",
-    legacy: "legal",
-    vintage: "restricted",
-  });
+  assert.deepEqual(canonical.legalities, { pauper: "legal" });
   assert.equal(canonical.default_printing_id, "scryfall-id");
   assert.equal(canonical.metagame_printing_id, null);
   assert.equal(canonical.printings_count, 0);

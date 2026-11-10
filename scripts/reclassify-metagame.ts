@@ -15,7 +15,7 @@ import { config } from "dotenv";
 import type { AnyBulkWriteOperation, Db } from "mongodb";
 
 import { identityColors } from "../src/lib/cards/mana";
-import type { Card, CardColor, Printing } from "../src/lib/cards/types";
+import type { Card, CardColor } from "../src/lib/cards/types";
 import {
   CLASSIFICATION_VERSION,
   IDENTITY_EXEMPT_CARDS,
@@ -55,7 +55,6 @@ interface CardIdentity {
   colors: CardColor[];
   manaCost: string | null;
   typeLine: string | null;
-  image: string | null;
 }
 
 interface Catalog {
@@ -63,44 +62,9 @@ interface Catalog {
   byAlias: Map<string, CardIdentity>;
 }
 
-function cardImage(card: Card): string | null {
-  return (
-    card.image_uris?.normal ??
-    card.image_uris?.small ??
-    card.card_faces?.[0]?.image_uris.normal ??
-    card.card_faces?.[0]?.image_uris.small ??
-    null
-  );
-}
-
-function printingImage(printing: Printing): string | null {
-  return (
-    printing.image_uris?.normal ??
-    printing.image_uris?.small ??
-    printing.card_faces?.[0]?.image_uris.normal ??
-    printing.card_faces?.[0]?.image_uris.small ??
-    null
-  );
-}
-
-/** scryfall_id -> image, so a card can use its earliest-common-printing art. */
-async function loadPrintingImages(db: Db): Promise<Map<string, string>> {
-  const map = new Map<string, string>();
-  const cursor = db.collection<Printing>("printings").find(
-    {},
-    { projection: { scryfall_id: 1, image_uris: 1, card_faces: 1 } },
-  );
-  for await (const printing of cursor) {
-    const image = printingImage(printing);
-    if (image) map.set(printing.scryfall_id, image);
-  }
-  return map;
-}
-
 async function loadCatalog(db: Db): Promise<Catalog> {
   const byOracle = new Map<string, CardIdentity>();
   const byAlias = new Map<string, CardIdentity>();
-  const printingImages = await loadPrintingImages(db);
   const cursor = db.collection<Card>("cards").find(
     { layout: { $nin: NON_DECK_LAYOUTS } },
     {
@@ -110,8 +74,6 @@ async function loadCatalog(db: Db): Promise<Catalog> {
         colors: 1,
         mana_cost: 1,
         type_line: 1,
-        image_uris: 1,
-        card_faces: 1,
         metagame_printing_id: 1,
         default_printing_id: 1,
       },
@@ -127,11 +89,6 @@ async function loadCatalog(db: Db): Promise<Catalog> {
       colors: (card.colors ?? []) as CardColor[],
       manaCost: card.mana_cost ?? null,
       typeLine: card.type_line ?? null,
-      // Prefer the earliest common printing (the metagame default art).
-      image:
-        (card.metagame_printing_id
-          ? printingImages.get(card.metagame_printing_id)
-          : undefined) ?? cardImage(card),
     };
     if (card.oracle_id) byOracle.set(card.oracle_id, info);
     for (const alias of nameAliases(card.name)) {
@@ -178,8 +135,8 @@ function identityOf(
 
 /**
  * Re-resolve each stored card entry against the catalog: this corrects oracle
- * ids and default printings, and backfills the type line and image the
- * decklist view needs. It also fixes entries that had resolved to a token.
+ * ids and default printings, and backfills the type line the decklist view
+ * needs. It also fixes entries that had resolved to a token.
  */
 function resolveBoard(
   entries: MetagameCardEntry[],
@@ -198,7 +155,6 @@ function resolveBoard(
       oracle_id: info?.oracleId ?? entry.oracle_id,
       printing_id: info?.printingId ?? entry.printing_id,
       type_line: info?.typeLine ?? entry.type_line ?? null,
-      image: info?.image ?? entry.image ?? null,
       colors: exempt
         ? []
         : info

@@ -95,7 +95,6 @@ function toDeckCard(
       (details ? cardArt(details) : null),
     image_normal:
       (printing ? printingImage(printing) : null) ??
-      entry.image ??
       (details ? cardImage(details) : null),
     price_usd: printing?.prices.usd ?? details?.prices.usd ?? null,
     category_group: typeLine ? deriveCategory(typeLine) : "Other",

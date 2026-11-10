@@ -87,17 +87,10 @@ async function ensureIndexes(db: Db) {
   await Promise.all([
     db.collection("cards").createIndex({ oracle_id: 1 }, { unique: true }),
     db.collection("cards").createIndex({ name_normalized: 1 }),
-    db.collection("cards").createIndex({ name: "text", oracle_text: "text" }),
     db.collection("cards").createIndex({ color_identity: 1 }),
     db.collection("cards").createIndex({ cmc: 1 }),
-    db.collection("cards").createIndex({ "legalities.pauper": 1 }),
     db.collection("printings").createIndex({ scryfall_id: 1 }, { unique: true }),
     db.collection("printings").createIndex({ oracle_id: 1, released_at: -1 }),
-    db.collection("printings").createIndex({
-      oracle_id: 1,
-      rarity: 1,
-      released_at: 1,
-    }),
     db.collection("sync_runs").createIndex({ job: 1, started_at: -1 }),
   ]);
 }

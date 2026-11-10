@@ -2,7 +2,7 @@ import { config } from "dotenv";
 import type { AnyBulkWriteOperation, Db } from "mongodb";
 
 import { identityColors } from "../src/lib/cards/mana";
-import type { Card, CardColor, Printing } from "../src/lib/cards/types";
+import type { Card, CardColor } from "../src/lib/cards/types";
 import { nameAliases, normalizeName } from "../src/lib/cards/normalize-name";
 import {
   CLASSIFICATION_VERSION,
@@ -147,7 +147,6 @@ interface ResolvedCard {
   name_normalized: string;
   printing_id: string | null;
   type_line: string | null;
-  image: string | null;
   colors: CardColor[];
 }
 
@@ -347,42 +346,8 @@ function buildMatchesBody(): URLSearchParams {
   return body;
 }
 
-function cardImage(card: Card): string | null {
-  return (
-    card.image_uris?.normal ??
-    card.image_uris?.small ??
-    card.card_faces?.[0]?.image_uris.normal ??
-    card.card_faces?.[0]?.image_uris.small ??
-    null
-  );
-}
-
-function printingImage(printing: Printing): string | null {
-  return (
-    printing.image_uris?.normal ??
-    printing.image_uris?.small ??
-    printing.card_faces?.[0]?.image_uris.normal ??
-    printing.card_faces?.[0]?.image_uris.small ??
-    null
-  );
-}
-
-async function loadPrintingImages(db: Db): Promise<Map<string, string>> {
-  const map = new Map<string, string>();
-  const cursor = db.collection<Printing>("printings").find(
-    {},
-    { projection: { scryfall_id: 1, image_uris: 1, card_faces: 1 } },
-  );
-  for await (const printing of cursor) {
-    const image = printingImage(printing);
-    if (image) map.set(printing.scryfall_id, image);
-  }
-  return map;
-}
-
 async function buildCardIndex(db: Db): Promise<CardResolver> {
   const resolver: CardResolver = new Map();
-  const printingImages = await loadPrintingImages(db);
   const cursor = db.collection<Card>("cards").find(
     { layout: { $nin: NON_DECK_LAYOUTS } },
     {
@@ -391,8 +356,6 @@ async function buildCardIndex(db: Db): Promise<CardResolver> {
         name: 1,
         mana_cost: 1,
         type_line: 1,
-        image_uris: 1,
-        card_faces: 1,
         colors: 1,
         metagame_printing_id: 1,
         default_printing_id: 1,
@@ -407,9 +370,6 @@ async function buildCardIndex(db: Db): Promise<CardResolver> {
       name_normalized: normalizeName(doc.name),
       printing_id: doc.metagame_printing_id ?? doc.default_printing_id ?? null,
       type_line: doc.type_line ?? null,
-      image:
-        (doc.metagame_printing_id ? printingImages.get(doc.metagame_printing_id) : undefined) ??
-        cardImage(doc),
       colors: identityColors(doc.mana_cost ?? null, (doc.colors ?? []) as CardColor[]),
     };
     for (const alias of nameAliases(doc.name)) {
@@ -434,7 +394,6 @@ function toEntries(records: MeleeCardRecord[], resolver: CardResolver): Metagame
       oracle_id: resolved?.oracle_id ?? null,
       printing_id: resolved?.printing_id ?? null,
       type_line: resolved?.type_line ?? record.t ?? null,
-      image: resolved?.image ?? null,
       colors: exempt ? [] : (resolved?.colors ?? []),
     };
   });

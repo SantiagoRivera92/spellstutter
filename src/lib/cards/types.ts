@@ -94,6 +94,8 @@ export interface Printing {
   mtgo_id: number | null;
   /** TCGplayer catalog product id for this printing. */
   tcgplayer_product_id?: number | null;
+  /** When we last checked TCGplayer for this printing. */
+  tcgplayer_checked_at?: string | null;
   updated_at: string;
 }
 

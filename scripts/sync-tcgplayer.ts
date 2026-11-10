@@ -157,9 +157,11 @@ async function apiGet<T>(token: string, path: string): Promise<T> {
       continue;
     }
 
-    throw new Error(
+    const error = new Error(
       `TCGplayer ${response.status} ${response.statusText}: ${path}`,
-    );
+    ) as Error & { status?: number };
+    error.status = response.status;
+    throw error;
   }
   throw new Error(`TCGplayer request failed after retries: ${path}`);
 }
@@ -195,10 +197,17 @@ async function productsForName(
       offset: String(offset),
       limit: String(PAGE_SIZE),
     });
-    const data = await apiGet<ProductResponse>(
-      token,
-      `/catalog/products?${params}`,
-    );
+    let data: ProductResponse;
+    try {
+      data = await apiGet<ProductResponse>(
+        token,
+        `/catalog/products?${params}`,
+      );
+    } catch (error) {
+      // TCGplayer returns 404 when no products match the exact name.
+      if ((error as { status?: number }).status === 404) break;
+      throw error;
+    }
     products.push(...(data.results ?? []));
     offset += PAGE_SIZE;
     if (!data.results?.length || offset >= data.totalItems) break;
@@ -267,6 +276,7 @@ async function sync(db: Db, options: Options) {
           set: 1,
           collector_number: 1,
           tcgplayer_product_id: 1,
+          tcgplayer_checked_at: 1,
         },
       },
     )
@@ -317,7 +327,11 @@ async function sync(db: Db, options: Options) {
     const cardPrintings = printingsByOracle.get(card.oracle_id) ?? [];
     if (!cardPrintings.length) continue;
 
-    if (!options.force && cardPrintings.every((p) => p.tcgplayer_product_id)) {
+    const pending = cardPrintings.filter(
+      (printing) =>
+        !printing.tcgplayer_product_id && !printing.tcgplayer_checked_at,
+    );
+    if (!options.force && !pending.length) {
       skipped += 1;
       continue;
     }
@@ -383,11 +397,25 @@ async function sync(db: Db, options: Options) {
             $set: {
               tcgplayer_product_id: productId,
               tcgplayer_updated_at: now,
+              tcgplayer_checked_at: now,
             },
           },
         },
       });
       matchedPrintings += 1;
+    }
+
+    // Remember misses too, so cards whose printings do not exist on TCGplayer
+    // are not re-queried every day. New Scryfall printings lack this field and
+    // will be picked up by the next run.
+    for (const printing of pending) {
+      if (matched.has(printing.scryfall_id)) continue;
+      printingOps.push({
+        updateOne: {
+          filter: { scryfall_id: printing.scryfall_id },
+          update: { $set: { tcgplayer_checked_at: now } },
+        },
+      });
     }
 
     const canonicalId =
